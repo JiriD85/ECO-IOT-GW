@@ -15,82 +15,119 @@ python -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 
-# Run development server
+# Development server (with reload)
 uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 
 # Run tests
 pytest
 pytest tests/test_auth.py -v              # Single test file
 pytest -k "test_login" -v                 # Tests matching pattern
+pytest --cov=app                          # With coverage
 ```
 
-### Frontend (Vue.js 3)
+### Frontend (Vue.js 3 / Vuetify 3)
 ```bash
 cd frontend
 npm install
 
-# Run development server
+# Development server (port 3000, proxies /api to backend)
 npm run dev
 
-# Build for production
+# Production build
 npm run build
 
-# Lint
+# Lint with auto-fix
 npm run lint
 ```
 
 ### Full Installation on Raspberry Pi
 ```bash
 sudo ./install/install.sh
+sudo ./install/uninstall.sh              # Uninstall
 ```
 
 ## Architecture
 
-### Backend Structure (`backend/app/`)
+### Backend (`backend/app/`)
 
-- **`main.py`**: FastAPI application entry point with lifespan management, middleware (CORS, security headers, request logging), and router registration
-- **`config.py`**: Pydantic settings loaded from `/etc/eco-iot-gw/secrets.env`
-- **`api/`**: FastAPI routers - each file corresponds to a feature (auth, docker, vpn, modem, serial, wifi, system, diagnostics, watchdog, audit, terminal)
-- **`services/`**: Business logic layer - services interact with system commands, Docker SDK, serial ports, etc.
+- **`main.py`**: FastAPI entry point with lifespan management, middleware (CORS, security headers, request logging), router registration
+- **`config.py`**: Pydantic settings loaded from `/etc/eco-iot-gw/secrets.env` (production) or environment vars (dev)
+- **`api/`**: FastAPI routers - each file is a feature module (auth, docker, vpn, modem, serial, wifi, system, terminal, diagnostics, watchdog, audit, thingsboard)
+- **`services/`**: Business logic layer - services handle system interactions (subprocess, Docker SDK, pyserial, AT commands)
 - **`security/`**: Authentication (JWT with bcrypt), crypto (AES-256), rate limiting, input validators
 - **`models/schemas.py`**: Pydantic models for request/response validation
 
-### Frontend Structure (`frontend/src/`)
+### Frontend (`frontend/src/`)
 
-- **`views/`**: Page components (Login, Dashboard, VpnConfig, DockerManager, Terminal, etc.)
-- **`services/api.js`**: Axios instance with automatic token refresh and API helper functions
+- **`views/`**: Page components (Login, Dashboard, VpnConfig, DockerManager, ThingsboardConfig, Terminal, etc.)
+- **`services/api.js`**: Axios instance with automatic token refresh interceptors
 - **`services/auth.js`**: Pinia store for authentication state
-- **`router/`**: Vue Router configuration with auth guards
+- **`composables/`**: Reusable composition functions (useGatewayStatus, useSnackbar, etc.)
+- **`router/`**: Vue Router with auth guards (redirects unauthenticated users to /login)
 
 ### Key Integration Patterns
 
-1. **Service Layer**: API routes in `api/*.py` call corresponding services in `services/*.py`. Services handle system interactions (subprocess calls, Docker SDK, pyserial).
+1. **Service Layer**: API routes in `api/*.py` call corresponding services in `services/*.py`. Services handle system interactions.
 
-2. **Sudo Commands**: The `eco-iot-gw` user runs with limited sudo permissions defined in `/etc/sudoers.d/eco-iot-gw`. Service code uses `sudo=True` parameter in `_run_command()` for privileged operations.
+2. **Sudo Commands**: The `eco-iot-gw` user has limited sudo permissions via `/etc/sudoers.d/eco-iot-gw`. Services use `_run_command(cmd, sudo=True)` for privileged operations.
 
-3. **VPN Config Flow**: Files uploaded via API → saved to `/etc/openvpn/client/` or `/etc/wireguard/` → ownership changed to root via sudo → systemd service started.
+3. **WebSocket Terminal**: `terminal.py` creates a PTY shell session, streams I/O over WebSocket to xterm.js frontend.
 
-4. **WebSocket Terminal**: `terminal.py` creates a PTY shell session, streams I/O over WebSocket to xterm.js frontend.
+4. **Audit Logging**: All configuration changes logged to SQLite at `/var/lib/eco-iot-gw/audit/audit.db` via `audit_service.py`.
 
-5. **Audit Logging**: All configuration changes are logged to SQLite at `/var/lib/eco-iot-gw/audit/audit.db` via `audit_service.py`.
+5. **Gateway Status State Machine**: ThingsBoard gateway status uses states: UNKNOWN → STARTING → CONNECTED ↔ DISCONNECTED → STOPPED/ERROR. Includes caching (30s TTL) and circuit breaker.
 
 ### Deployment Paths
 
 | Component | Development | Production |
 |-----------|-------------|------------|
 | Backend | `localhost:8000` | `/opt/eco-iot-gw/backend/` via systemd |
-| Frontend | `localhost:5173` | `/var/www/eco-iot-gw/` served by Nginx |
-| Config | Environment vars | `/etc/eco-iot-gw/secrets.env` |
+| Frontend | `localhost:3000` | `/var/www/eco-iot-gw/` served by Nginx |
+| Config | Environment vars / `.env.local` | `/etc/eco-iot-gw/secrets.env` |
 | Logs | Console | `/var/log/eco-iot-gw/` |
+| Data | Local | `/var/lib/eco-iot-gw/` |
 
-### Systemd Services
+## Remote Deployment (Raspberry Pi)
 
-- `eco-iot-gw-backend.service`: Uvicorn server (runs as `eco-iot-gw` user)
-- Nginx reverse proxy handles HTTPS termination and serves static frontend
+```bash
+# SSH connection (credentials in .env.local)
+sshpass -p 'pi' ssh -o StrictHostKeyChecking=no pi@192.168.1.69 '[COMMAND]'
 
-## Important Configuration Notes
+# Deploy frontend
+cd frontend && npm run build
+sshpass -p 'pi' scp -r dist/* pi@192.168.1.69:/tmp/frontend-dist/
+sshpass -p 'pi' ssh pi@192.168.1.69 'sudo cp -r /tmp/frontend-dist/* /var/www/eco-iot-gw/'
 
-- JWT tokens expire in 15 minutes; refresh tokens last 7 days
-- VPN config files must be owned by root with correct permissions (644 for OpenVPN, 600 for WireGuard)
-- The systemd watchdog is disabled in the service file - the app has its own internal watchdog
-- `ReadWritePaths` in systemd unit must include all config directories the app writes to
+# Deploy backend
+sshpass -p 'pi' scp backend/app/*.py pi@192.168.1.69:/tmp/backend/
+sshpass -p 'pi' ssh pi@192.168.1.69 'sudo cp -r /tmp/backend/* /opt/eco-iot-gw/backend/app/'
+sshpass -p 'pi' ssh pi@192.168.1.69 'sudo systemctl restart eco-iot-gw-backend'
+
+# Check service status
+sshpass -p 'pi' ssh pi@192.168.1.69 'sudo systemctl status eco-iot-gw-backend'
+sshpass -p 'pi' ssh pi@192.168.1.69 'sudo journalctl -u eco-iot-gw-backend -n 50 --no-pager'
+```
+
+## Configuration Notes
+
+- **JWT tokens**: Access expires in 15 minutes, refresh in 7 days
+- **Rate limiting**: 100 requests/60 seconds, login lockout after 5 failed attempts (15 min)
+- **VPN configs**: OpenVPN (644 permissions), WireGuard (600 permissions), owned by root
+- **ThingsBoard Gateway**: Docker container, config at `/etc/thingsboard-gateway/config/`
+
+## Tech Stack
+
+- **Backend**: FastAPI 0.109+, Python 3.11, Uvicorn, pydantic, python-jose, bcrypt, docker-py, pyserial
+- **Frontend**: Vue.js 3.4 (Composition API), Pinia, Vue Router, Vuetify 3.5, Vite 5, Axios, xterm.js
+- **Deployment**: Docker, systemd, Nginx, SQLite (audit), Raspberry Pi OS
+
+## Custom Skills (Claude Code)
+
+The project uses custom skills defined in `~/.claude/skills/`:
+- `/commit` - Git commit with auto-generated conventional message
+- `/ssh` - SSH to IoT Gateway for status checks and debugging
+- `/tbsync` - Sync ThingsBoard dashboards/widgets/i18n to server
+- `/tbpull` - Pull ThingsBoard assets from server
+- `/deploy` - Full deployment workflow (tbsync + commit + push)
+- `/validate` - Validate JSON/JS/i18n files
+- `/uitest` - Browser UI testing with screenshots/GIFs
