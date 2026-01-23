@@ -146,8 +146,10 @@ class ThingsBoardService:
             re.compile(r"Connection refused", re.IGNORECASE),
             re.compile(r"Connection failed", re.IGNORECASE),
             re.compile(r"Authentication failed", re.IGNORECASE),
-            re.compile(r"Connection timed out", re.IGNORECASE),
+            re.compile(r"Connection timed? ?out", re.IGNORECASE),  # Match "timed out" and "timeout"
+            re.compile(r"TimeoutError", re.IGNORECASE),
             re.compile(r"Could not connect", re.IGNORECASE),
+            re.compile(r"\|ERROR\|.*connect", re.IGNORECASE),  # Match ERROR level log entries about connection
         ],
     }
 
