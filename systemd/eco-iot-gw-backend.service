@@ -1,0 +1,28 @@
+[Unit]
+Description=ECO-IOT-GW Backend Service
+After=network.target docker.service
+Wants=docker.service
+
+[Service]
+Type=simple
+User=eco-iot-gw
+Group=eco-iot-gw
+WorkingDirectory=/opt/eco-iot-gw/backend
+Environment="PATH=/opt/eco-iot-gw/backend/venv/bin:/usr/local/bin:/usr/bin:/bin"
+EnvironmentFile=/etc/eco-iot-gw/secrets.env
+ExecStart=/opt/eco-iot-gw/backend/venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000
+Restart=always
+RestartSec=5
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/log/eco-iot-gw /var/lib/eco-iot-gw
+PrivateTmp=true
+
+# Watchdog
+WatchdogSec=30
+
+[Install]
+WantedBy=multi-user.target

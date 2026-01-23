@@ -1,0 +1,16 @@
+[Unit]
+Description=ECO-IOT-GW WiFi Access Point
+After=network.target
+Wants=eco-iot-gw-backend.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/sbin/hostapd -B /etc/hostapd/hostapd.conf
+ExecStartPost=/bin/sleep 2
+ExecStartPost=/usr/sbin/dnsmasq --conf-file=/etc/dnsmasq.conf
+ExecStop=/usr/bin/killall hostapd
+ExecStopPost=/usr/bin/killall dnsmasq
+
+[Install]
+WantedBy=multi-user.target
