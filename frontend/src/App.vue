@@ -58,21 +58,17 @@
 </template>
 
 <script setup>
-import { ref, computed, provide } from 'vue'
+import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from './services/auth'
+import { useSnackbar } from './composables/useSnackbar'
 
 const router = useRouter()
 const authStore = useAuthStore()
+const snackbar = useSnackbar()
 
 const drawer = ref(true)
 const rail = ref(false)
-
-const snackbar = ref({
-  show: false,
-  text: '',
-  color: 'success'
-})
 
 const isAuthenticated = computed(() => authStore.isAuthenticated)
 
@@ -89,12 +85,6 @@ const menuItems = [
   { title: 'System', icon: 'mdi-cog', path: '/system' },
   { title: 'Audit Log', icon: 'mdi-clipboard-text', path: '/audit' }
 ]
-
-const showSnackbar = (text, color = 'success') => {
-  snackbar.value = { show: true, text, color }
-}
-
-provide('showSnackbar', showSnackbar)
 
 const logout = async () => {
   await authStore.logout()

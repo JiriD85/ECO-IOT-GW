@@ -308,10 +308,11 @@
 </template>
 
 <script setup>
-import { ref, inject, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import api from '../services/api'
+import { useSnackbar } from '../composables/useSnackbar'
 
-const showSnackbar = inject('showSnackbar')
+const { showSnackbar } = useSnackbar()
 
 const status = ref(null)
 const gatewayStatus = ref(null)
