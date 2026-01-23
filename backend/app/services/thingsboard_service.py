@@ -351,7 +351,11 @@ class ThingsBoardService:
         for dev in available.get("devices", []):
             device_lines.append(f'      - "{dev["path"]}:{dev["path"]}"')
 
-        devices_section = "\n".join(device_lines) if device_lines else "      # No serial devices detected"
+        # Format devices section - must be valid YAML list or empty
+        if device_lines:
+            devices_section = "    devices:\n" + "\n".join(device_lines)
+        else:
+            devices_section = "    # No serial devices detected - devices section omitted"
 
         # Generate docker-compose.yml
         compose_content = f'''version: '3.4'
@@ -362,7 +366,6 @@ services:
     restart: always
 
     # Serial device mappings
-    devices:
 {devices_section}
 
     # Port bindings
