@@ -3,22 +3,21 @@
     <v-navigation-drawer
       v-if="isAuthenticated"
       v-model="drawer"
-      :rail="rail"
+      v-model:rail="rail"
       permanent
     >
-      <v-list-item
-        prepend-icon="mdi-access-point-network"
-        title="ECO-IOT-GW"
-        nav
-      >
-        <template v-slot:append>
-          <v-btn
-            variant="text"
-            :icon="rail ? 'mdi-chevron-right' : 'mdi-chevron-left'"
-            @click="rail = !rail"
-          ></v-btn>
-        </template>
-      </v-list-item>
+      <!-- Header with toggle button -->
+      <div class="d-flex align-center pa-2">
+        <!-- Toggle button - always visible at left edge -->
+        <v-btn
+          variant="text"
+          :icon="rail ? 'mdi-menu' : 'mdi-chevron-left'"
+          size="small"
+          @click="rail = !rail"
+        ></v-btn>
+        <v-icon v-if="!rail" class="mx-2">mdi-access-point-network</v-icon>
+        <span v-if="!rail" class="text-subtitle-1 font-weight-bold flex-grow-1">ECO-IOT-GW</span>
+      </div>
 
       <v-divider></v-divider>
 
@@ -96,5 +95,9 @@ const logout = async () => {
 html, body, #app {
   height: 100%;
   overflow: hidden;
+}
+
+.cursor-pointer {
+  cursor: pointer;
 }
 </style>

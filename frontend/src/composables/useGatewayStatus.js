@@ -91,6 +91,8 @@ export function useGatewayStatus(options = {}) {
 
   const containerRunning = computed(() => status.value?.container?.running ?? false)
 
+  const containerStatus = computed(() => status.value?.container?.status || null)
+
   const mqttConnected = computed(() => status.value?.mqtt_connected ?? false)
 
   const message = computed(() => status.value?.message || null)
@@ -226,6 +228,7 @@ export function useGatewayStatus(options = {}) {
     stateLabel,
     stateDescription,
     containerRunning,
+    containerStatus,
     mqttConnected,
     message,
     isCached,

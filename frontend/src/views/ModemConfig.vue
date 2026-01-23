@@ -30,7 +30,7 @@
                 </template>
               </v-list-item>
 
-              <v-list-item v-if="status?.signal_quality !== null">
+              <v-list-item v-if="status && status.signal_quality != null">
                 <template v-slot:prepend>
                   <v-icon>mdi-signal</v-icon>
                 </template>

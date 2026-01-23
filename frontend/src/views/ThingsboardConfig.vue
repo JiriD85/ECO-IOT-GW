@@ -39,7 +39,7 @@
                     :color="containerRunning ? 'success' : 'grey'"
                     size="small"
                   >
-                    {{ gatewayStatus?.container?.status || 'Not deployed' }}
+                    {{ containerStatus || 'Not deployed' }}
                   </v-chip>
                 </template>
               </v-list-item>
@@ -356,6 +356,7 @@ const {
   stateLabel,
   message: statusMessage,
   containerRunning,
+  containerStatus,
   mqttConnected,
   isCached,
   forceRefresh: refreshGatewayStatus,
