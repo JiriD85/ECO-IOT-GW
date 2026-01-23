@@ -312,6 +312,55 @@ class AuditLogQuery(BaseModel):
 
 
 # =============================================================================
+# ThingsBoard Models
+# =============================================================================
+
+class ThingsBoardSecurityType(str, Enum):
+    """ThingsBoard security type enumeration."""
+    ACCESS_TOKEN = "access_token"
+    TLS_ACCESS_TOKEN = "tls_access_token"
+    USERNAME_PASSWORD = "username_password"
+
+
+class ThingsBoardConfig(BaseModel):
+    """ThingsBoard configuration model."""
+    host: str = Field(default="lb-mqtt.pke-iot.expert", min_length=1, max_length=255)
+    port: int = Field(default=1883, ge=1, le=65535)
+    security_type: ThingsBoardSecurityType = ThingsBoardSecurityType.ACCESS_TOKEN
+    # Access Token security
+    access_token: Optional[str] = Field(None, max_length=255)
+    # TLS settings (for port 8883)
+    use_tls: bool = False
+    ca_cert: Optional[str] = None  # CA certificate content
+    # Username/Password security
+    client_id: Optional[str] = Field(None, max_length=255)
+    username: Optional[str] = Field(None, max_length=255)
+    password: Optional[str] = Field(None, max_length=255)
+
+
+class ThingsBoardStatus(BaseModel):
+    """ThingsBoard connection status model."""
+    connected: bool
+    host: Optional[str] = None
+    port: Optional[int] = None
+    security_type: Optional[ThingsBoardSecurityType] = None
+    last_connected: Optional[datetime] = None
+    error: Optional[str] = None
+
+
+class ThingsBoardConfigResponse(BaseModel):
+    """ThingsBoard config response (without sensitive data)."""
+    configured: bool
+    host: Optional[str] = None
+    port: Optional[int] = None
+    security_type: Optional[ThingsBoardSecurityType] = None
+    use_tls: bool = False
+    has_ca_cert: bool = False
+    has_access_token: bool = False
+    has_credentials: bool = False
+
+
+# =============================================================================
 # Generic Response Models
 # =============================================================================
 

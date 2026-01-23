@@ -79,6 +79,7 @@ const isAuthenticated = computed(() => authStore.isAuthenticated)
 const menuItems = [
   { title: 'Dashboard', icon: 'mdi-view-dashboard', path: '/dashboard' },
   { title: 'Docker', icon: 'mdi-docker', path: '/docker' },
+  { title: 'ThingsBoard', icon: 'mdi-cloud-sync', path: '/thingsboard' },
   { title: 'Terminal', icon: 'mdi-console', path: '/terminal' },
   { title: 'VPN', icon: 'mdi-vpn', path: '/vpn' },
   { title: 'Diagnostics', icon: 'mdi-chart-line', path: '/diagnostics' },

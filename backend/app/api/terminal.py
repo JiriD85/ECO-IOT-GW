@@ -11,6 +11,7 @@ import signal
 import struct
 import subprocess
 import termios
+import time
 from typing import Optional
 
 from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect, status
@@ -70,13 +71,21 @@ class TerminalSession:
 
     async def read_output(self):
         """Read output from PTY and send to WebSocket."""
+        loop = asyncio.get_event_loop()
         while self.running:
             try:
-                # Use select for non-blocking read
-                r, _, _ = select.select([self.master_fd], [], [], 0.1)
+                # Run blocking select in thread pool to avoid blocking the event loop
+                r, _, _ = await loop.run_in_executor(
+                    None,
+                    lambda: select.select([self.master_fd], [], [], 0.1)
+                )
 
                 if self.master_fd in r:
-                    output = os.read(self.master_fd, 4096)
+                    # Also run the blocking read in thread pool
+                    output = await loop.run_in_executor(
+                        None,
+                        lambda: os.read(self.master_fd, 4096)
+                    )
                     if output:
                         await self.websocket.send_bytes(output)
                     else:
@@ -115,7 +124,22 @@ class TerminalSession:
         if self.pid:
             try:
                 os.kill(self.pid, signal.SIGTERM)
-                os.waitpid(self.pid, 0)
+                # Non-blocking wait with timeout (1 second total)
+                for _ in range(10):
+                    pid, status = os.waitpid(self.pid, os.WNOHANG)
+                    if pid != 0:
+                        break
+                    time.sleep(0.1)
+                else:
+                    # Force kill if still running after timeout
+                    try:
+                        os.kill(self.pid, signal.SIGKILL)
+                        os.waitpid(self.pid, os.WNOHANG)
+                    except Exception:
+                        pass
+            except ChildProcessError:
+                # Process already exited
+                pass
             except Exception:
                 pass
 
