@@ -1,18 +1,24 @@
 """
 ECO-IOT-GW ThingsBoard Service
-ThingsBoard Gateway connection configuration
+ThingsBoard Gateway connection configuration with State Machine, Caching and Circuit Breaker
 """
 import json
 import logging
 import os
 import re
+import socket
 import subprocess
+import time
+import threading
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 
 from ..config import settings
 from ..models.schemas import (
+    GatewayComprehensiveStatus,
+    GatewayContainerStatus,
+    GatewayStatusState,
     ThingsBoardConfig,
     ThingsBoardConfigResponse,
     ThingsBoardSecurityType,
@@ -23,14 +29,137 @@ from ..security.crypto import decrypt_sensitive_data, encrypt_sensitive_data
 logger = logging.getLogger(__name__)
 
 
+# =============================================================================
+# Caching Infrastructure
+# =============================================================================
+
+class CachedValue:
+    """Thread-safe cached value with TTL."""
+
+    def __init__(self, ttl_seconds: float = 30.0):
+        self._value: Any = None
+        self._ttl = ttl_seconds
+        self._timestamp: float = 0.0
+        self._lock = threading.Lock()
+
+    def get(self) -> Tuple[Any, bool, float]:
+        """Get cached value. Returns (value, is_valid, age_seconds)."""
+        with self._lock:
+            age = time.time() - self._timestamp
+            is_valid = self._value is not None and age < self._ttl
+            return self._value, is_valid, age
+
+    def set(self, value: Any) -> None:
+        """Set cached value."""
+        with self._lock:
+            self._value = value
+            self._timestamp = time.time()
+
+    def invalidate(self) -> None:
+        """Invalidate cache."""
+        with self._lock:
+            self._timestamp = 0.0
+
+
+# =============================================================================
+# Circuit Breaker
+# =============================================================================
+
+class CircuitBreaker:
+    """Circuit breaker pattern for handling repeated failures."""
+
+    CLOSED = "closed"
+    OPEN = "open"
+    HALF_OPEN = "half_open"
+
+    def __init__(self, failure_threshold: int = 3, reset_timeout: float = 60.0):
+        self._state = self.CLOSED
+        self._failure_count = 0
+        self._failure_threshold = failure_threshold
+        self._reset_timeout = reset_timeout
+        self._last_failure_time: float = 0.0
+        self._lock = threading.Lock()
+
+    @property
+    def state(self) -> str:
+        """Get current circuit state."""
+        with self._lock:
+            if self._state == self.OPEN:
+                # Check if reset timeout has passed
+                if time.time() - self._last_failure_time >= self._reset_timeout:
+                    self._state = self.HALF_OPEN
+            return self._state
+
+    def can_execute(self) -> bool:
+        """Check if operation can be executed."""
+        state = self.state
+        return state in (self.CLOSED, self.HALF_OPEN)
+
+    def record_success(self) -> None:
+        """Record successful operation."""
+        with self._lock:
+            self._failure_count = 0
+            self._state = self.CLOSED
+
+    def record_failure(self) -> None:
+        """Record failed operation."""
+        with self._lock:
+            self._failure_count += 1
+            self._last_failure_time = time.time()
+            if self._failure_count >= self._failure_threshold:
+                self._state = self.OPEN
+                logger.warning(f"Circuit breaker opened after {self._failure_count} failures")
+
+    def reset(self) -> None:
+        """Reset circuit breaker."""
+        with self._lock:
+            self._failure_count = 0
+            self._state = self.CLOSED
+            self._last_failure_time = 0.0
+
+
 class ThingsBoardService:
-    """Service for ThingsBoard Gateway configuration."""
+    """Service for ThingsBoard Gateway configuration with state machine and caching."""
+
+    # Exact container names to match (avoids matching unrelated containers)
+    GATEWAY_CONTAINER_NAMES = ["tb-gateway", "thingsboard-gateway"]
+
+    # Log patterns for connection state detection (ordered by priority)
+    LOG_PATTERNS = {
+        "connected": [
+            re.compile(r"Connected to ThingsBoard", re.IGNORECASE),
+            re.compile(r"MQTT.?client.?connected", re.IGNORECASE),
+            re.compile(r"Successfully connected to", re.IGNORECASE),
+            re.compile(r"connection established", re.IGNORECASE),
+        ],
+        "starting": [
+            re.compile(r"Connecting to", re.IGNORECASE),
+            re.compile(r"Starting MQTT", re.IGNORECASE),
+            re.compile(r"Initializing gateway", re.IGNORECASE),
+        ],
+        "disconnected": [
+            re.compile(r"Connection lost", re.IGNORECASE),
+            re.compile(r"Disconnected from", re.IGNORECASE),
+            re.compile(r"MQTT.?client.?disconnected", re.IGNORECASE),
+        ],
+        "error": [
+            re.compile(r"Connection refused", re.IGNORECASE),
+            re.compile(r"Connection failed", re.IGNORECASE),
+            re.compile(r"Authentication failed", re.IGNORECASE),
+            re.compile(r"Connection timed out", re.IGNORECASE),
+            re.compile(r"Could not connect", re.IGNORECASE),
+        ],
+    }
 
     def __init__(self):
         self._config_file = settings.DATA_DIR / "thingsboard" / "tb_config.json"
         self._ca_cert_file = settings.DATA_DIR / "thingsboard" / "ca.pem"
         self._gateway_config_file = settings.TB_GATEWAY_CONFIG_DIR / "tb_gateway.json"
         self._docker_compose_file = settings.DOCKER_COMPOSE_DIR / "docker-compose.yml"
+
+        # Caching and circuit breaker
+        self._status_cache = CachedValue(ttl_seconds=30.0)
+        self._circuit_breaker = CircuitBreaker(failure_threshold=3, reset_timeout=60.0)
 
         # Ensure directories exist
         self._config_file.parent.mkdir(parents=True, exist_ok=True)
@@ -587,6 +716,277 @@ volumes:
         except Exception as e:
             logger.error(f"Error downloading certificate: {e}")
             return {"success": False, "error": str(e)}
+
+    # =========================================================================
+    # Comprehensive Gateway Status with State Machine
+    # =========================================================================
+
+    def _find_gateway_container(self) -> Optional[Dict[str, Any]]:
+        """Find the gateway container by exact name matching."""
+        try:
+            result = subprocess.run(
+                ["docker", "ps", "-a", "--format", "{{json .}}"],
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+            if result.returncode != 0:
+                return None
+
+            for line in result.stdout.strip().split('\n'):
+                if not line:
+                    continue
+                try:
+                    container = json.loads(line)
+                    container_name = container.get("Names", "")
+                    # Exact name matching (avoid 'thingsboard' in name issues)
+                    if container_name in self.GATEWAY_CONTAINER_NAMES:
+                        return container
+                except json.JSONDecodeError:
+                    continue
+            return None
+        except Exception as e:
+            logger.debug(f"Error finding gateway container: {e}")
+            return None
+
+    def _get_container_status(self) -> GatewayContainerStatus:
+        """Get detailed container status using docker inspect."""
+        for name in self.GATEWAY_CONTAINER_NAMES:
+            try:
+                result = subprocess.run(
+                    ["docker", "inspect", name],
+                    capture_output=True,
+                    text=True,
+                    timeout=10
+                )
+                if result.returncode == 0:
+                    container_info = json.loads(result.stdout)[0]
+                    state = container_info.get("State", {})
+
+                    started_at = None
+                    if state.get("StartedAt"):
+                        try:
+                            started_at = datetime.fromisoformat(
+                                state["StartedAt"].replace("Z", "+00:00")
+                            )
+                        except (ValueError, TypeError):
+                            pass
+
+                    health_status = None
+                    if "Health" in state:
+                        health_status = state["Health"].get("Status")
+
+                    return GatewayContainerStatus(
+                        running=state.get("Running", False),
+                        status=state.get("Status", "unknown"),
+                        started_at=started_at,
+                        health=health_status,
+                        error=state.get("Error") or None
+                    )
+            except Exception as e:
+                logger.debug(f"Error inspecting container {name}: {e}")
+                continue
+
+        return GatewayContainerStatus(running=False, status="not_found")
+
+    def _probe_mqtt_connection(self, host: str, port: int, timeout: int = 5) -> bool:
+        """TCP probe to test MQTT port connectivity."""
+        try:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(timeout)
+            result = sock.connect_ex((host, port))
+            sock.close()
+            return result == 0
+        except Exception as e:
+            logger.debug(f"MQTT probe failed: {e}")
+            return False
+
+    def _analyze_logs_for_state(self, logs: str) -> Tuple[Optional[GatewayStatusState], Optional[str]]:
+        """Analyze logs to determine connection state. Returns (state, message)."""
+        if not logs:
+            return None, None
+
+        # Check lines from most recent first
+        lines = logs.strip().split('\n')
+        lines.reverse()
+
+        for line in lines[:50]:  # Only check last 50 lines
+            # Check error patterns first (higher priority)
+            for pattern in self.LOG_PATTERNS["error"]:
+                if pattern.search(line):
+                    # Extract relevant part of the message
+                    return GatewayStatusState.ERROR, line.strip()[-100:]
+
+            # Check connected
+            for pattern in self.LOG_PATTERNS["connected"]:
+                if pattern.search(line):
+                    return GatewayStatusState.CONNECTED, "MQTT connected"
+
+            # Check disconnected
+            for pattern in self.LOG_PATTERNS["disconnected"]:
+                if pattern.search(line):
+                    return GatewayStatusState.DISCONNECTED, "Connection lost"
+
+            # Check starting
+            for pattern in self.LOG_PATTERNS["starting"]:
+                if pattern.search(line):
+                    return GatewayStatusState.STARTING, "Establishing connection..."
+
+        return None, None
+
+    def _get_recent_logs(self, lines: int = 50) -> str:
+        """Get recent logs from gateway container."""
+        for name in self.GATEWAY_CONTAINER_NAMES:
+            try:
+                result = subprocess.run(
+                    ["docker", "logs", "--tail", str(lines), name],
+                    capture_output=True,
+                    text=True,
+                    timeout=10
+                )
+                if result.returncode == 0:
+                    return result.stdout + result.stderr
+            except Exception:
+                continue
+        return ""
+
+    def get_comprehensive_status(self, force_refresh: bool = False) -> GatewayComprehensiveStatus:
+        """
+        Get comprehensive gateway status with multi-level health checks.
+
+        Health check strategy (in order):
+        1. Docker container status (fast, reliable)
+        2. Docker health check (if configured)
+        3. TCP MQTT probe (active connection test)
+        4. Log analysis (fallback)
+        """
+        # Check cache first
+        if not force_refresh:
+            cached_value, is_valid, age = self._status_cache.get()
+            if is_valid and cached_value:
+                cached_value.cached = True
+                cached_value.cache_age_seconds = round(age, 1)
+                return cached_value
+
+        # Check circuit breaker
+        if not self._circuit_breaker.can_execute():
+            logger.debug("Circuit breaker is open, returning cached/error status")
+            cached_value, _, age = self._status_cache.get()
+            if cached_value:
+                cached_value.cached = True
+                cached_value.cache_age_seconds = round(age, 1)
+                cached_value.message = "Circuit breaker open, using cached status"
+                return cached_value
+            return GatewayComprehensiveStatus(
+                state=GatewayStatusState.ERROR,
+                message="Service temporarily unavailable (circuit breaker open)"
+            )
+
+        try:
+            # Step 1: Container status
+            container_status = self._get_container_status()
+
+            if not container_status.running:
+                status = GatewayComprehensiveStatus(
+                    state=GatewayStatusState.STOPPED,
+                    container=container_status,
+                    mqtt_connected=False,
+                    message="Gateway container not running",
+                    last_check=datetime.now()
+                )
+                self._status_cache.set(status)
+                self._circuit_breaker.record_success()
+                return status
+
+            # Step 2: Check Docker health (if available)
+            if container_status.health == "healthy":
+                # Container reports healthy - likely connected
+                mqtt_connected = True
+                state = GatewayStatusState.CONNECTED
+                message = "Container health: healthy"
+            elif container_status.health == "unhealthy":
+                mqtt_connected = False
+                state = GatewayStatusState.ERROR
+                message = "Container health: unhealthy"
+            elif container_status.health == "starting":
+                mqtt_connected = False
+                state = GatewayStatusState.STARTING
+                message = "Container starting..."
+            else:
+                # No health check configured, proceed to other checks
+                mqtt_connected = False
+                state = GatewayStatusState.UNKNOWN
+                message = None
+
+            # Step 3: TCP MQTT probe (if we don't have definitive state)
+            if state == GatewayStatusState.UNKNOWN:
+                config = self._load_config()
+                if config:
+                    host = config.get("host", "")
+                    port = config.get("port", 1883)
+                    if host and self._probe_mqtt_connection(host, port):
+                        # Port is reachable, but doesn't confirm gateway connection
+                        # Continue to log analysis
+                        pass
+                    else:
+                        # MQTT port not reachable
+                        state = GatewayStatusState.DISCONNECTED
+                        message = f"Cannot reach MQTT broker at {host}:{port}"
+
+            # Step 4: Log analysis (fallback or confirmation)
+            if state == GatewayStatusState.UNKNOWN or message is None:
+                logs = self._get_recent_logs(50)
+                log_state, log_message = self._analyze_logs_for_state(logs)
+
+                if log_state:
+                    state = log_state
+                    message = log_message
+                    mqtt_connected = (state == GatewayStatusState.CONNECTED)
+                elif state == GatewayStatusState.UNKNOWN:
+                    # Container running but no clear state
+                    state = GatewayStatusState.STARTING
+                    message = "Waiting for gateway status..."
+
+            # Check container uptime for starting state
+            if container_status.started_at:
+                uptime_seconds = (datetime.now(container_status.started_at.tzinfo or None)
+                                  - container_status.started_at).total_seconds()
+                if uptime_seconds < 30 and state not in (GatewayStatusState.ERROR,):
+                    state = GatewayStatusState.STARTING
+                    message = message or "Gateway initializing..."
+
+            status = GatewayComprehensiveStatus(
+                state=state,
+                container=container_status,
+                mqtt_connected=mqtt_connected,
+                message=message,
+                cached=False,
+                cache_age_seconds=0,
+                last_check=datetime.now()
+            )
+
+            self._status_cache.set(status)
+            self._circuit_breaker.record_success()
+            return status
+
+        except Exception as e:
+            logger.error(f"Error getting comprehensive status: {e}")
+            self._circuit_breaker.record_failure()
+
+            # Return error status
+            return GatewayComprehensiveStatus(
+                state=GatewayStatusState.ERROR,
+                message=f"Error checking status: {str(e)}",
+                last_check=datetime.now()
+            )
+
+    def invalidate_status_cache(self) -> None:
+        """Invalidate the status cache (e.g., after config change)."""
+        self._status_cache.invalidate()
+
+    def reset_circuit_breaker(self) -> None:
+        """Reset the circuit breaker (e.g., for manual recovery)."""
+        self._circuit_breaker.reset()
 
 
 # Global ThingsBoard service instance

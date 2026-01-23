@@ -5,9 +5,10 @@ ThingsBoard Gateway configuration endpoints
 import logging
 from typing import Any, Dict
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from ..models.schemas import (
+    GatewayComprehensiveStatus,
     SuccessResponse,
     ThingsBoardConfig,
     ThingsBoardConfigResponse,
@@ -34,6 +35,7 @@ async def save_thingsboard_config(
     """Save ThingsBoard configuration."""
     try:
         thingsboard_service.save_config(config)
+        thingsboard_service.invalidate_status_cache()
 
         # Log audit event
         try:
@@ -111,6 +113,7 @@ async def restart_thingsboard_gateway(user=Depends(get_current_user)):
     """Restart the ThingsBoard Gateway container."""
     try:
         thingsboard_service.restart_gateway()
+        thingsboard_service.invalidate_status_cache()
 
         try:
             from ..services.audit_service import audit_service
@@ -159,6 +162,7 @@ async def get_available_devices(user=Depends(get_current_user)):
 async def deploy_gateway(user=Depends(get_current_user)):
     """Generate docker-compose and deploy the gateway."""
     result = thingsboard_service.deploy_gateway()
+    thingsboard_service.invalidate_status_cache()
 
     try:
         from ..services.audit_service import audit_service
@@ -179,6 +183,7 @@ async def deploy_gateway(user=Depends(get_current_user)):
 async def stop_gateway(user=Depends(get_current_user)):
     """Stop the ThingsBoard Gateway."""
     result = thingsboard_service.stop_gateway()
+    thingsboard_service.invalidate_status_cache()
 
     try:
         from ..services.audit_service import audit_service
@@ -195,10 +200,20 @@ async def stop_gateway(user=Depends(get_current_user)):
     return result
 
 
-@router.get("/gateway-status", response_model=Dict[str, Any])
-async def get_gateway_container_status(user=Depends(get_current_user)):
-    """Get detailed gateway container status."""
-    return thingsboard_service.get_gateway_status()
+@router.get("/gateway-status", response_model=GatewayComprehensiveStatus)
+async def get_gateway_container_status(
+    force_refresh: bool = Query(False, description="Bypass cache and force fresh status check"),
+    user=Depends(get_current_user)
+):
+    """
+    Get comprehensive gateway status with state machine.
+
+    Returns state (unknown, starting, connected, disconnected, stopped, error),
+    container status, MQTT connection state, and diagnostic message.
+
+    Includes caching (30s TTL) and circuit breaker (3 failures → open, 60s reset).
+    """
+    return thingsboard_service.get_comprehensive_status(force_refresh=force_refresh)
 
 
 @router.get("/logs", response_model=Dict[str, Any])

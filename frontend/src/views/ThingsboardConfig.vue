@@ -10,41 +10,71 @@
     <v-row>
       <v-col cols="12" md="6">
         <v-card>
-          <v-card-title>Gateway Status</v-card-title>
+          <v-card-title class="d-flex align-center">
+            Gateway Status
+            <v-spacer></v-spacer>
+            <v-btn
+              icon
+              variant="text"
+              size="small"
+              :loading="statusLoading"
+              @click="refreshGatewayStatus"
+              title="Refresh status"
+            >
+              <v-icon>mdi-refresh</v-icon>
+            </v-btn>
+          </v-card-title>
           <v-card-text>
             <v-list>
+              <!-- Container Status -->
               <v-list-item>
                 <template v-slot:prepend>
-                  <v-icon :color="gatewayStatus?.running ? 'success' : 'error'">
-                    {{ gatewayStatus?.running ? 'mdi-docker' : 'mdi-docker' }}
+                  <v-icon :color="containerRunning ? 'success' : 'grey'">
+                    mdi-docker
                   </v-icon>
                 </template>
                 <v-list-item-title>Container</v-list-item-title>
                 <template v-slot:append>
                   <v-chip
-                    :color="gatewayStatus?.running ? 'success' : 'grey'"
+                    :color="containerRunning ? 'success' : 'grey'"
                     size="small"
                   >
-                    {{ gatewayStatus?.status || 'Not deployed' }}
+                    {{ gatewayStatus?.container?.status || 'Not deployed' }}
                   </v-chip>
                 </template>
               </v-list-item>
+
+              <!-- ThingsBoard Connection State -->
               <v-list-item>
                 <template v-slot:prepend>
-                  <v-icon :color="status?.connected ? 'success' : 'warning'">
-                    {{ status?.connected ? 'mdi-cloud-check' : 'mdi-cloud-off-outline' }}
+                  <v-icon :color="stateColor">
+                    {{ stateIcon }}
                   </v-icon>
                 </template>
                 <v-list-item-title>ThingsBoard</v-list-item-title>
                 <template v-slot:append>
                   <v-chip
-                    :color="status?.connected ? 'success' : 'warning'"
+                    :color="stateColor"
                     size="small"
                   >
-                    {{ status?.connected ? 'Connected' : 'Disconnected' }}
+                    {{ stateLabel }}
                   </v-chip>
                 </template>
               </v-list-item>
+
+              <!-- Status Message (if any) -->
+              <v-list-item v-if="statusMessage">
+                <template v-slot:prepend>
+                  <v-icon :color="gatewayState === 'error' ? 'error' : 'grey'">
+                    {{ gatewayState === 'error' ? 'mdi-alert-circle' : 'mdi-information-outline' }}
+                  </v-icon>
+                </template>
+                <v-list-item-title class="text-caption" style="white-space: normal;">
+                  {{ statusMessage }}
+                </v-list-item-title>
+              </v-list-item>
+
+              <!-- Server Info -->
               <v-list-item v-if="status?.host">
                 <template v-slot:prepend>
                   <v-icon>mdi-server</v-icon>
@@ -54,20 +84,21 @@
                   {{ status.host }}:{{ status.port }}
                 </template>
               </v-list-item>
-              <v-list-item v-if="status?.error">
+
+              <!-- Cache indicator -->
+              <v-list-item v-if="isCached" density="compact">
                 <template v-slot:prepend>
-                  <v-icon color="error">mdi-alert-circle</v-icon>
+                  <v-icon size="small" color="grey">mdi-cached</v-icon>
                 </template>
-                <v-list-item-title>Error</v-list-item-title>
-                <template v-slot:append>
-                  <span class="text-error text-caption">{{ status.error }}</span>
-                </template>
+                <v-list-item-title class="text-caption text-grey">
+                  Cached status
+                </v-list-item-title>
               </v-list-item>
             </v-list>
           </v-card-text>
           <v-card-actions>
             <v-btn
-              v-if="!gatewayStatus?.running"
+              v-if="!containerRunning"
               color="success"
               :loading="actionLoading === 'deploy'"
               :disabled="!configInfo?.configured"
@@ -87,7 +118,7 @@
               Stop
             </v-btn>
             <v-btn
-              v-if="gatewayStatus?.running"
+              v-if="containerRunning"
               color="warning"
               variant="outlined"
               :loading="actionLoading === 'restart'"
@@ -274,7 +305,7 @@
     </v-row>
 
     <!-- Logs Section -->
-    <v-row class="mt-4" v-if="gatewayStatus?.running">
+    <v-row class="mt-4" v-if="containerRunning">
       <v-col cols="12">
         <v-card>
           <v-card-title class="d-flex align-center">
@@ -308,14 +339,32 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, watch } from 'vue'
 import api from '../services/api'
 import { useSnackbar } from '../composables/useSnackbar'
+import { useGatewayStatus } from '../composables/useGatewayStatus'
 
 const { showSnackbar } = useSnackbar()
 
+// Use the gateway status composable
+const {
+  status: gatewayStatus,
+  loading: statusLoading,
+  state: gatewayState,
+  stateColor,
+  stateIcon,
+  stateLabel,
+  message: statusMessage,
+  containerRunning,
+  mqttConnected,
+  isCached,
+  forceRefresh: refreshGatewayStatus,
+  fetchStatus: fetchGatewayStatus,
+  startPolling,
+  stopPolling
+} = useGatewayStatus({ autoStart: false })
+
 const status = ref(null)
-const gatewayStatus = ref(null)
 const configInfo = ref(null)
 const devices = ref(null)
 const actionLoading = ref(null)
@@ -342,15 +391,16 @@ const config = ref({
 
 const fetchData = async () => {
   try {
-    const [statusRes, configRes, gatewayRes] = await Promise.all([
+    const [statusRes, configRes] = await Promise.all([
       api.get('/api/thingsboard/status'),
-      api.get('/api/thingsboard/config'),
-      api.get('/api/thingsboard/gateway-status')
+      api.get('/api/thingsboard/config')
     ])
 
     status.value = statusRes.data
     configInfo.value = configRes.data
-    gatewayStatus.value = gatewayRes.data
+
+    // Fetch gateway status via composable
+    await fetchGatewayStatus()
 
     if (configRes.data.configured) {
       config.value.host = configRes.data.host || config.value.host
@@ -360,7 +410,7 @@ const fetchData = async () => {
       caCertUploaded.value = configRes.data.has_ca_cert || false
     }
 
-    if (gatewayRes.data.running) {
+    if (containerRunning.value) {
       fetchLogs()
     }
   } catch (error) {
@@ -410,7 +460,11 @@ const deployGateway = async () => {
     const res = await api.post('/api/thingsboard/deploy')
     if (res.data.success) {
       showSnackbar(res.data.message, 'success')
-      setTimeout(fetchData, 3000)
+      // Wait for container to start, then force refresh status
+      setTimeout(async () => {
+        await refreshGatewayStatus()
+        fetchLogs()
+      }, 3000)
     } else {
       showSnackbar(res.data.error, 'error')
     }
@@ -427,7 +481,7 @@ const stopGateway = async () => {
     const res = await api.post('/api/thingsboard/stop')
     if (res.data.success) {
       showSnackbar(res.data.message)
-      await fetchData()
+      await refreshGatewayStatus()
     } else {
       showSnackbar(res.data.error, 'error')
     }
@@ -443,7 +497,11 @@ const restartGateway = async () => {
     actionLoading.value = 'restart'
     await api.post('/api/thingsboard/restart')
     showSnackbar('Gateway restarting...')
-    setTimeout(fetchData, 5000)
+    // Wait for restart, then force refresh status
+    setTimeout(async () => {
+      await refreshGatewayStatus()
+      fetchLogs()
+    }, 5000)
   } catch (error) {
     showSnackbar(error.response?.data?.detail || 'Failed to restart gateway', 'error')
   } finally {
@@ -508,10 +566,19 @@ const openPreview = () => {
 onMounted(() => {
   fetchData()
   fetchDevices()
-  refreshInterval = setInterval(fetchData, 10000)
+  // Start gateway status polling via composable
+  startPolling()
+  // Also refresh other data periodically
+  refreshInterval = setInterval(() => {
+    fetchDevices()
+    if (containerRunning.value) {
+      fetchLogs()
+    }
+  }, 30000)
 })
 
 onUnmounted(() => {
+  stopPolling()
   if (refreshInterval) {
     clearInterval(refreshInterval)
   }

@@ -322,6 +322,36 @@ class ThingsBoardSecurityType(str, Enum):
     USERNAME_PASSWORD = "username_password"
 
 
+class GatewayStatusState(str, Enum):
+    """Gateway status state enumeration for state machine."""
+    UNKNOWN = "unknown"
+    STARTING = "starting"
+    CONNECTED = "connected"
+    DISCONNECTED = "disconnected"
+    STOPPED = "stopped"
+    ERROR = "error"
+
+
+class GatewayContainerStatus(BaseModel):
+    """Gateway container status details."""
+    running: bool = False
+    status: str = "unknown"
+    started_at: Optional[datetime] = None
+    health: Optional[str] = None
+    error: Optional[str] = None
+
+
+class GatewayComprehensiveStatus(BaseModel):
+    """Comprehensive gateway status with state machine."""
+    state: GatewayStatusState = GatewayStatusState.UNKNOWN
+    container: GatewayContainerStatus = GatewayContainerStatus()
+    mqtt_connected: bool = False
+    message: Optional[str] = None
+    cached: bool = False
+    cache_age_seconds: Optional[float] = None
+    last_check: Optional[datetime] = None
+
+
 class ThingsBoardConfig(BaseModel):
     """ThingsBoard configuration model."""
     host: str = Field(default="lb-mqtt.pke-iot.expert", min_length=1, max_length=255)
