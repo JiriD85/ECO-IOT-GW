@@ -1,0 +1,49 @@
+{
+  "version": 1,
+  "disable_existing_loggers": false,
+  "formatters": {
+    "default": {
+      "format": "%(asctime)s - %(levelname)s - [%(filename)s] - %(module)s - %(lineno)d - %(message)s",
+      "datefmt": "%Y-%m-%d %H:%M:%S"
+    }
+  },
+  "handlers": {
+    "consoleHandler": {
+      "class": "logging.StreamHandler",
+      "level": "INFO",
+      "formatter": "default",
+      "stream": "ext://sys.stdout"
+    },
+    "fileHandler": {
+      "class": "logging.handlers.TimedRotatingFileHandler",
+      "level": "DEBUG",
+      "formatter": "default",
+      "filename": "/thingsboard-gateway/logs/connector.log",
+      "backupCount": 7,
+      "when": "D",
+      "encoding": "utf-8"
+    }
+  },
+  "loggers": {
+    "": {
+      "level": "DEBUG",
+      "handlers": ["consoleHandler", "fileHandler"]
+    },
+    "connector": {
+      "level": "DEBUG",
+      "handlers": ["consoleHandler", "fileHandler"]
+    },
+    "service": {
+      "level": "DEBUG",
+      "handlers": ["consoleHandler", "fileHandler"]
+    },
+    "storage": {
+      "level": "DEBUG",
+      "handlers": ["consoleHandler", "fileHandler"]
+    }
+  },
+  "root": {
+    "level": "INFO",
+    "handlers": ["consoleHandler", "fileHandler"]
+  }
+}

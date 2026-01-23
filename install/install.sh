@@ -92,7 +92,6 @@ install_base_packages() {
         gnupg \
         lsb-release \
         apt-transport-https \
-        software-properties-common \
         build-essential \
         libffi-dev \
         libssl-dev \
@@ -103,27 +102,21 @@ install_base_packages() {
 install_python() {
     log_step "Installing Python 3.11+..."
 
-    # Check if Python 3.11+ is available
-    if command -v python3.11 &> /dev/null; then
-        log_info "Python 3.11 already installed"
-        PYTHON_CMD="python3.11"
-    elif command -v python3 &> /dev/null; then
-        PY_VERSION=$(python3 --version | cut -d' ' -f2 | cut -d'.' -f1,2)
-        if (( $(echo "$PY_VERSION >= 3.11" | bc -l) )); then
-            log_info "Python $PY_VERSION found"
-            PYTHON_CMD="python3"
-        else
-            log_info "Installing Python 3.11..."
-            apt-get install -y python3.11 python3.11-venv python3.11-dev
-            PYTHON_CMD="python3.11"
-        fi
+    # Debian 13 (trixie) uses Python 3.12, Debian 12 uses Python 3.11
+    # Just use system Python 3 which is >= 3.11 on modern systems
+    if command -v python3 &> /dev/null; then
+        PY_VERSION=$(python3 --version | cut -d' ' -f2)
+        log_info "Found Python $PY_VERSION"
+        PYTHON_CMD="python3"
     else
-        apt-get install -y python3.11 python3.11-venv python3.11-dev
-        PYTHON_CMD="python3.11"
+        log_error "Python 3 not found"
+        exit 1
     fi
 
-    # Install pip
-    apt-get install -y python3-pip
+    # Install Python development packages and pip
+    apt-get install -y python3-pip python3-venv python3-dev
+
+    log_info "Python configured: $PYTHON_CMD"
 }
 
 # Install Node.js 20 LTS

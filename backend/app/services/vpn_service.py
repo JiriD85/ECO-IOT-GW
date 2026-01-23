@@ -53,9 +53,12 @@ class VPNService:
         self,
         cmd: list,
         timeout: int = 30,
-        check: bool = True
+        check: bool = True,
+        sudo: bool = False
     ) -> subprocess.CompletedProcess:
         """Run a system command."""
+        if sudo:
+            cmd = ["sudo"] + cmd
         logger.debug(f"Running command: {' '.join(cmd)}")
         return subprocess.run(
             cmd,
@@ -221,13 +224,17 @@ class VPNService:
         if vpn_type == VPNType.OPENVPN:
             config_path = settings.OPENVPN_CONFIG_DIR / "client.conf"
             config_path.write_text(content)
-            config_path.chmod(0o600)
+            # Set ownership to root and readable permissions for OpenVPN service
+            self._run_command(["chown", "root:root", str(config_path)], sudo=True, check=False)
+            self._run_command(["chmod", "644", str(config_path)], sudo=True, check=False)
             logger.info("OpenVPN configuration saved")
 
         elif vpn_type == VPNType.WIREGUARD:
             config_path = settings.WIREGUARD_CONFIG_DIR / "wg0.conf"
             config_path.write_text(content)
-            config_path.chmod(0o600)
+            # Set ownership to root and restricted permissions for WireGuard
+            self._run_command(["chown", "root:root", str(config_path)], sudo=True, check=False)
+            self._run_command(["chmod", "600", str(config_path)], sudo=True, check=False)
             logger.info("WireGuard configuration saved")
 
         else:
@@ -265,7 +272,7 @@ class VPNService:
         if not config_path.exists():
             raise FileNotFoundError("OpenVPN configuration not found")
 
-        self._run_command(["systemctl", "start", "openvpn-client@client"])
+        self._run_command(["systemctl", "start", "openvpn-client@client"], sudo=True)
         logger.info("OpenVPN connection started")
 
     def _connect_wireguard(self):
@@ -274,12 +281,12 @@ class VPNService:
         if not config_path.exists():
             raise FileNotFoundError("WireGuard configuration not found")
 
-        self._run_command(["wg-quick", "up", "wg0"])
+        self._run_command(["systemctl", "start", "wg-quick@wg0"], sudo=True)
         logger.info("WireGuard connection started")
 
     def _connect_tailscale(self):
         """Connect Tailscale."""
-        self._run_command(["tailscale", "up"])
+        self._run_command(["tailscale", "up"], sudo=True)
         logger.info("Tailscale connection started")
 
     def disconnect(self):
@@ -291,12 +298,13 @@ class VPNService:
             if self._current_type == VPNType.OPENVPN:
                 self._run_command(
                     ["systemctl", "stop", "openvpn-client@client"],
-                    check=False
+                    check=False,
+                    sudo=True
                 )
             elif self._current_type == VPNType.WIREGUARD:
-                self._run_command(["wg-quick", "down", "wg0"], check=False)
+                self._run_command(["systemctl", "stop", "wg-quick@wg0"], check=False, sudo=True)
             elif self._current_type == VPNType.TAILSCALE:
-                self._run_command(["tailscale", "down"], check=False)
+                self._run_command(["tailscale", "down"], check=False, sudo=True)
 
             logger.info("VPN disconnected")
 
@@ -345,25 +353,25 @@ class VPNService:
         action = "enable" if enabled else "disable"
 
         if self._current_type == VPNType.OPENVPN:
-            self._run_command(["systemctl", action, "openvpn-client@client"])
+            self._run_command(["systemctl", action, "openvpn-client@client"], sudo=True)
 
         elif self._current_type == VPNType.WIREGUARD:
-            self._run_command(["systemctl", action, "wg-quick@wg0"])
+            self._run_command(["systemctl", action, "wg-quick@wg0"], sudo=True)
 
         elif self._current_type == VPNType.TAILSCALE:
-            self._run_command(["systemctl", action, "tailscaled"])
+            self._run_command(["systemctl", action, "tailscaled"], sudo=True)
 
         logger.info(f"VPN autostart {action}d")
 
     def tailscale_auth(self, auth_key: str):
         """Authenticate Tailscale with auth key."""
         self.set_type(VPNType.TAILSCALE)
-        self._run_command(["tailscale", "up", "--authkey", auth_key])
+        self._run_command(["tailscale", "up", "--authkey", auth_key], sudo=True)
         logger.info("Tailscale authenticated")
 
     def tailscale_logout(self):
         """Logout from Tailscale."""
-        self._run_command(["tailscale", "logout"])
+        self._run_command(["tailscale", "logout"], sudo=True)
         logger.info("Tailscale logged out")
 
     def get_tailscale_status(self) -> Dict[str, Any]:

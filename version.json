@@ -1,0 +1,6 @@
+{
+  "version": "1.0.0",
+  "build_date": "2026-01-23",
+  "name": "ECO-IOT-GW",
+  "description": "IoT Gateway for Raspberry Pi based on ThingsBoard IoT Gateway"
+}

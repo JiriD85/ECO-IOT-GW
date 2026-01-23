@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
     JWT_REFRESH_TOKEN_EXPIRE_DAYS: int = 7
     AES_KEY: str = os.getenv("AES_KEY", "change-me-in-production-32bytes!")
+    ADMIN_PASSWORD: str = os.getenv("ADMIN_PASSWORD", "admin")
 
     # Rate Limiting
     RATE_LIMIT_REQUESTS: int = 100

@@ -18,11 +18,11 @@ RestartSec=5
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/var/log/eco-iot-gw /var/lib/eco-iot-gw
+ReadWritePaths=/var/log/eco-iot-gw /var/lib/eco-iot-gw /etc/openvpn /etc/wireguard /etc/hostapd /etc/dnsmasq.conf /etc/thingsboard-gateway
 PrivateTmp=true
 
-# Watchdog
-WatchdogSec=30
+# Watchdog disabled - application has internal watchdog
+# WatchdogSec=30
 
 [Install]
 WantedBy=multi-user.target

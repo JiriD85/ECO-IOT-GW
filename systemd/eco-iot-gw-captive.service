@@ -1,0 +1,15 @@
+[Unit]
+Description=ECO-IOT-GW Captive Portal Service
+After=network.target hostapd.service dnsmasq.service
+Wants=hostapd.service dnsmasq.service
+
+[Service]
+Type=forking
+ExecStartPre=/bin/sleep 2
+ExecStart=/usr/bin/nodogsplash
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

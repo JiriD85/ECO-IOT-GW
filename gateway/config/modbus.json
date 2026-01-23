@@ -1,0 +1,85 @@
+{
+  "master": {
+    "slaves": [
+      {
+        "host": "192.168.1.100",
+        "port": 502,
+        "type": "tcp",
+        "method": "socket",
+        "timeout": 35,
+        "byteOrder": "LITTLE",
+        "wordOrder": "LITTLE",
+        "retries": true,
+        "retryOnEmpty": true,
+        "retryOnInvalid": true,
+        "pollPeriod": 5000,
+        "unitId": 1,
+        "deviceName": "Modbus Device 1",
+        "deviceType": "default",
+        "sendDataOnlyOnChange": false,
+        "connectAttemptTimeMs": 5000,
+        "connectAttemptCount": 5,
+        "waitAfterFailedAttemptsMs": 300000,
+        "attributes": [
+          {
+            "tag": "serial_number",
+            "type": "string",
+            "functionCode": 3,
+            "objectsCount": 10,
+            "address": 0
+          }
+        ],
+        "timeseries": [
+          {
+            "tag": "temperature",
+            "type": "16int",
+            "functionCode": 3,
+            "objectsCount": 1,
+            "address": 100,
+            "divider": 10
+          },
+          {
+            "tag": "humidity",
+            "type": "16int",
+            "functionCode": 3,
+            "objectsCount": 1,
+            "address": 101,
+            "divider": 10
+          }
+        ],
+        "attributeUpdates": [],
+        "rpc": []
+      }
+    ]
+  },
+  "slave": {
+    "type": "serial",
+    "method": "rtu",
+    "port": "/dev/ttyAMA0",
+    "baudrate": 9600,
+    "stopbits": 1,
+    "bytesize": 8,
+    "parity": "N",
+    "strict": true,
+    "pollPeriod": 5000,
+    "unitId": 1,
+    "deviceName": "RS485 Device",
+    "deviceType": "default",
+    "sendDataOnlyOnChange": false,
+    "connectAttemptTimeMs": 5000,
+    "connectAttemptCount": 5,
+    "waitAfterFailedAttemptsMs": 300000,
+    "attributes": [],
+    "timeseries": [
+      {
+        "tag": "temperature",
+        "type": "16int",
+        "functionCode": 3,
+        "objectsCount": 1,
+        "address": 0
+      }
+    ],
+    "attributeUpdates": [],
+    "rpc": []
+  }
+}
