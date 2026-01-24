@@ -93,6 +93,58 @@ class NetworkService:
             logger.error(f"Command failed: {' '.join(cmd)} - {e}")
             return "", str(e), -1
 
+    async def _run_command_async(
+        self, cmd: List[str], sudo: bool = False, timeout: int = 30
+    ) -> Tuple[str, str, int]:
+        """
+        Execute a command asynchronously with optional sudo.
+
+        Args:
+            cmd: Command and arguments as list
+            sudo: Whether to run with sudo
+            timeout: Command timeout in seconds
+
+        Returns:
+            Tuple of (stdout, stderr, returncode)
+
+        Raises:
+            asyncio.TimeoutError: If command exceeds timeout
+        """
+        try:
+            if sudo:
+                cmd = ["sudo"] + cmd
+
+            # Use asyncio subprocess for non-blocking execution
+            process = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+
+            try:
+                stdout_bytes, stderr_bytes = await asyncio.wait_for(
+                    process.communicate(),
+                    timeout=timeout
+                )
+
+                stdout = stdout_bytes.decode('utf-8') if stdout_bytes else ""
+                stderr = stderr_bytes.decode('utf-8') if stderr_bytes else ""
+
+                return stdout, stderr, process.returncode
+
+            except asyncio.TimeoutError:
+                logger.error(f"Command timed out: {' '.join(cmd)}")
+                try:
+                    process.kill()
+                    await process.wait()
+                except:
+                    pass
+                return "", "Command timed out", -1
+
+        except Exception as e:
+            logger.error(f"Command failed: {' '.join(cmd)} - {e}")
+            return "", str(e), -1
+
     def _validate_interface_name(self, interface: str) -> bool:
         """
         Validate interface name to prevent command injection.
@@ -146,8 +198,15 @@ class NetworkService:
         """
         Get list of all network interfaces with status.
 
+        Uses psutil to gather interface statistics and IO counters.
+        Excludes loopback interface.
+
         Returns:
-            List of interface dictionaries with name, is_up, speed, bytes sent/recv
+            List of interface dictionaries with name, is_up, speed, bytes sent/recv.
+            Returns empty list if psutil unavailable or on error.
+
+        Raises:
+            No exceptions raised - errors are logged and empty list returned.
         """
         interfaces = []
 
@@ -193,11 +252,18 @@ class NetworkService:
         """
         Get detailed status for a specific interface.
 
+        Uses psutil for statistics and netifaces (if available) for IP addresses.
+        Validates interface name to prevent command injection.
+
         Args:
             interface_name: Name of the interface (e.g., eth0, wwan0)
 
         Returns:
-            Dictionary with interface status or None if not found
+            Dictionary with interface status or None if not found/invalid.
+            Includes: name, is_up, speed_mbps, mtu, bytes_sent/recv, errors, drops, addresses.
+
+        Raises:
+            No exceptions raised - errors are logged and None returned.
         """
         if not self._validate_interface_name(interface_name):
             return None
@@ -261,12 +327,18 @@ class NetworkService:
         """
         Get currently active default route.
 
+        Uses `ip route show default` command to get routing information.
+        Parses first line (lowest metric = active route).
+
         Returns:
-            Dictionary with interface, gateway, metric or None
+            Dictionary with interface, gateway, metric or None if no default route.
+
+        Raises:
+            No exceptions raised - errors are logged and None returned.
         """
         try:
             # Use ip route command for compatibility
-            stdout, stderr, rc = self._run_command(["ip", "route", "show", "default"])
+            stdout, stderr, rc = await self._run_command_async(["ip", "route", "show", "default"])
 
             if rc != 0:
                 logger.error(f"Failed to get default route: {stderr}")
@@ -350,7 +422,7 @@ class NetworkService:
 
         try:
             # Get connection name for interface (may differ from interface name)
-            stdout, stderr, rc = self._run_command(
+            stdout, stderr, rc = await self._run_command_async(
                 ["nmcli", "-t", "-f", "NAME,DEVICE", "connection", "show", "--active"]
             )
 
@@ -376,7 +448,7 @@ class NetworkService:
                 return {"success": False, "message": error_msg}
 
             # Set IPv4 route metric
-            stdout, stderr, rc = self._run_command(
+            stdout, stderr, rc = await self._run_command_async(
                 ["nmcli", "connection", "modify", connection_name,
                  "ipv4.route-metric", str(priority)],
                 sudo=True
@@ -396,7 +468,7 @@ class NetworkService:
                 return {"success": False, "message": error_msg}
 
             # Set IPv6 route metric (avoid pitfall 7)
-            stdout, stderr, rc = self._run_command(
+            stdout, stderr, rc = await self._run_command_async(
                 ["nmcli", "connection", "modify", connection_name,
                  "ipv6.route-metric", str(priority)],
                 sudo=True
@@ -406,7 +478,7 @@ class NetworkService:
                 logger.warning(f"Failed to set IPv6 metric: {stderr}")
 
             # Reactivate connection to apply changes
-            stdout, stderr, rc = self._run_command(
+            stdout, stderr, rc = await self._run_command_async(
                 ["nmcli", "connection", "up", connection_name],
                 sudo=True
             )
@@ -468,12 +540,19 @@ class NetworkService:
         """
         Check connectivity via ping health check bound to specific interface.
 
+        Uses `ping -I <interface>` to bind to specific interface.
+        Tests multiple targets (1.1.1.1, 8.8.8.8) if no specific target given.
+        Non-blocking via asyncio subprocess.
+
         Args:
             interface_name: Interface to test (e.g., eth0, wwan0)
             target: Target IP to ping (defaults to multiple redundant targets)
 
         Returns:
-            True if connectivity verified, False otherwise
+            True if connectivity verified, False otherwise.
+
+        Raises:
+            No exceptions raised - errors are logged and False returned.
         """
         if not self._validate_interface_name(interface_name):
             return False
@@ -520,8 +599,14 @@ class NetworkService:
         """
         Get current failover configuration.
 
+        Reads from /etc/eco-iot-gw/network-failover.conf.
+        Returns defaults (eth0, wwan0) if config file doesn't exist.
+
         Returns:
-            Dictionary with primary and backup interface names
+            Dictionary with primary and backup interface names.
+
+        Raises:
+            No exceptions raised - errors are logged and defaults returned.
         """
         try:
             if self.config_path.exists():
@@ -610,7 +695,7 @@ class NetworkService:
             await asyncio.to_thread(temp_path.write_text, config_content)
 
             # Move to final location with sudo
-            stdout, stderr, rc = self._run_command(
+            stdout, stderr, rc = await self._run_command_async(
                 ["cp", str(temp_path), str(self.config_path)],
                 sudo=True
             )
