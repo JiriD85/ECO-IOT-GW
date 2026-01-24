@@ -1,0 +1,30 @@
+[Unit]
+Description=ECO-IOT-GW SMS Alert Daemon
+Documentation=https://github.com/jiridockal/ECO-IOT-GW
+After=network-online.target eco-iot-gw-backend.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=eco-iot-gw
+Group=eco-iot-gw
+WorkingDirectory=/opt/eco-iot-gw/backend
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/eco-iot-gw/backend/venv/bin/python -m app.services.sms_alert_daemon
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=always
+RestartSec=10
+
+# Security hardening
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/eco-iot-gw /var/log/eco-iot-gw
+PrivateTmp=yes
+
+# Resource limits
+MemoryMax=128M
+CPUQuota=5%
+
+[Install]
+WantedBy=multi-user.target
