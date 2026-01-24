@@ -167,3 +167,25 @@ export const backupApi = {
     })
   }
 }
+
+// Network Failover API
+export const networkApi = {
+  // Get current network status for all interfaces
+  getStatus: () => api.get('/api/network/status'),
+
+  // Get detailed status for specific interface
+  getInterface: (interfaceName) => api.get(`/api/network/interfaces/${interfaceName}`),
+
+  // Get current failover configuration
+  getFailoverConfig: () => api.get('/api/network/failover/config'),
+
+  // Set failover configuration (admin only)
+  setFailoverConfig: (config) => api.put('/api/network/failover/config', config),
+
+  // Test connectivity on specific interface
+  testConnectivity: (interfaceName, target = '8.8.8.8') =>
+    api.post('/api/network/connectivity/test', {
+      interface: interfaceName,
+      target
+    }),
+}
