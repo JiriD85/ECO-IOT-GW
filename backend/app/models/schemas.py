@@ -188,6 +188,26 @@ class WiFiAPConfig(BaseModel):
 
 
 # =============================================================================
+# Branding Models
+# =============================================================================
+
+class BrandingConfig(BaseModel):
+    """Branding configuration."""
+    kit_name: str = Field(default="ECO-IOT-GW", max_length=32, description="Kit identifier")
+    theme: str = Field(default="light", pattern="^(light|dark)$")
+    update_wifi_ssid: bool = Field(default=False, description="Also update WiFi AP SSID")
+
+
+class BrandingStatus(BaseModel):
+    """Branding status response."""
+    kit_name: str
+    theme: str
+    has_logo: bool = False
+    has_favicon: bool = False
+    wifi_ssid_synced: bool = False
+
+
+# =============================================================================
 # System Models
 # =============================================================================
 
