@@ -440,6 +440,11 @@ install_services() {
     systemctl enable eco-iot-gw-backend.service
     systemctl start eco-iot-gw-backend.service
 
+    # Install failover daemon service
+    log_info "Installing failover daemon service..."
+    systemctl enable eco-iot-gw-failover.service
+    systemctl start eco-iot-gw-failover.service
+
     log_info "Systemd services installed"
 }
 
@@ -493,6 +498,14 @@ print_completion() {
     echo "Default credentials:"
     echo "  Username: admin"
     echo "  Password: See $CONFIG_DIR/secrets.env"
+    echo ""
+    echo "Services running:"
+    echo "  - eco-iot-gw-backend (API server)"
+    echo "  - eco-iot-gw-failover (Network failover daemon)"
+    echo ""
+    echo "Checking service status..."
+    systemctl status eco-iot-gw-backend.service --no-pager | head -3
+    systemctl status eco-iot-gw-failover.service --no-pager | head -3
     echo ""
     echo "WLAN AP will be available as:"
     echo "  SSID: ECO-IOT-GW-$(cat /sys/class/net/wlan0/address 2>/dev/null | tr -d ':' | tail -c 5 || echo 'XXXX')"
