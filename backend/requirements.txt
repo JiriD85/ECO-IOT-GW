@@ -26,6 +26,10 @@ pyserial>=3.5
 # System Monitoring
 psutil>=5.9.0
 
+# Network Management
+pyroute2>=0.9.3
+netifaces>=0.11.0
+
 # YAML Processing
 pyyaml>=6.0.1
 
