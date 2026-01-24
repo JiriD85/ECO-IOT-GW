@@ -88,10 +88,10 @@ Plans:
 **Plans:** 4 plans
 
 Plans:
-- [ ] 04-01-PLAN.md - Backend SMS Foundation (models, sms_service, modem SMS methods)
-- [ ] 04-02-PLAN.md - Backend SMS API (endpoints for config and testing)
-- [ ] 04-03-PLAN.md - Frontend SMS Alerts View (Vue component, UI)
-- [ ] 04-04-PLAN.md - SMS Alert Daemon (automated trigger monitoring, systemd service)
+- [x] 04-01-PLAN.md - Backend SMS Foundation (models, sms_service, modem SMS methods) ✓
+- [x] 04-02-PLAN.md - Backend SMS API (endpoints for config and testing) ✓
+- [x] 04-03-PLAN.md - Frontend SMS Alerts View (Vue component, UI) ✓
+- [x] 04-04-PLAN.md - SMS Alert Daemon (automated trigger monitoring, systemd service) ✓
 
 ---
 
@@ -112,5 +112,5 @@ Plans:
 - [x] **FAILOVER-02**: User can configure failover priority and thresholds ✓
 
 ### SMS Alerts
-- [ ] **SMS-01**: User can configure SMS alert recipients
-- [ ] **SMS-02**: System sends SMS via AT commands on Quectel modem
+- [x] **SMS-01**: User can configure SMS alert recipients ✓
+- [x] **SMS-02**: System sends SMS via AT commands on Quectel modem ✓
