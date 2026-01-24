@@ -6,16 +6,16 @@ See: .planning/PROJECT.md (updated 2026-01-24)
 
 **Core value:** System-Level-Konfiguration des IoT Gateways uber eine einfache Web-UI, ohne die ThingsBoard Gateway Config zu beruhren (MQTT-Sync vom Server)
 
-**Current focus:** Phase 5 - Menu Restructuring
+**Current focus:** v1.1 UI Improvements — Phase 5 complete, ready for Phase 6
 
 ## Current Position
 
-Phase: 5 of 5 (Menu Restructuring)
-Plan: 4 of 4 (partial - checkpoint pending)
-Status: Awaiting verification
-Last activity: 2026-01-24 - Completed 05-04 Task 1, checkpoint reached
+Phase: 5 of 8 (Menu Restructuring) ✓ COMPLETE
+Plan: 4/4
+Status: Phase 5 verified and deployed
+Last activity: 2026-01-24 — Phase 5 Menu Restructuring complete
 
-Progress: [█████████████████████████████████░] 98%
+Progress: [██████░░░░] 62.5% (5/8 phases complete)
 
 ## Accumulated Context
 
@@ -133,10 +133,10 @@ None
 
 ## Session Continuity
 
-Last session: 2026-01-24T14:22:12Z
-Stopped at: 05-04 Task 1 complete, checkpoint reached (human verification pending)
+Last session: 2026-01-24T15:35:00Z
+Stopped at: Phase 5 complete
 Resume file: None
-Next: Human verification of navigation menu functionality → Final deployment
+Next: Phase 6 (Kit Identification & Branding)
 
 ### Deployment Notes (Phase 3)
 - Deployed to gateway 192.168.1.69
@@ -196,4 +196,4 @@ Next: Human verification of navigation menu functionality → Final deployment
 | 05-01 | 1 | Complete | Create parent container views with v-tabs |
 | 05-02 | 2 | Complete | Router restructure (parent/child hierarchy) |
 | 05-03 | 3 | Complete | Child view cleanup (remove wrappers) |
-| 05-04 | 3 | Checkpoint | App.vue menu update (verification pending) |
+| 05-04 | 3 | Complete | App.vue menu update (verified) |

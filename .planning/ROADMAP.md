@@ -112,10 +112,10 @@ Plans:
 **Plans:** 4 plans
 
 Plans:
-- [ ] 05-01-PLAN.md — Create parent container views (Interfaces, Network, System, Monitoring)
-- [ ] 05-02-PLAN.md — Restructure router with nested routes and redirects
-- [ ] 05-03-PLAN.md — Adapt child components (remove containers, keep logic)
-- [ ] 05-04-PLAN.md — Update App.vue menu and verify navigation
+- [x] 05-01-PLAN.md — Create parent container views (Interfaces, Network, System, Monitoring) ✓
+- [x] 05-02-PLAN.md — Restructure router with nested routes and redirects ✓
+- [x] 05-03-PLAN.md — Adapt child components (remove containers, keep logic) ✓
+- [x] 05-04-PLAN.md — Update App.vue menu and verify navigation ✓
 
 ---
 
@@ -140,8 +140,8 @@ Plans:
 - [x] **SMS-02**: System sends SMS via AT commands on Quectel modem ✓
 
 ### Menu Restructuring
-- [ ] **MENU-01**: Interfaces view combines Modem and Serial as tabs
-- [ ] **MENU-02**: Network view combines Failover, VPN, and WiFi as tabs
-- [ ] **MENU-03**: System view combines Settings, NTP, Backup, and Admin as tabs
-- [ ] **MENU-04**: Monitoring view combines Diagnostics, Audit, and SMS Alerts as tabs
-- [ ] **MENU-05**: Navigation reduced from 15 to 8 menu items
+- [x] **MENU-01**: Interfaces view combines Modem and Serial as tabs ✓
+- [x] **MENU-02**: Network view combines Failover, VPN, and WiFi as tabs ✓
+- [x] **MENU-03**: System view combines Settings, NTP, Backup, and Admin as tabs ✓
+- [x] **MENU-04**: Monitoring view combines Diagnostics, Audit, and SMS Alerts as tabs ✓
+- [x] **MENU-05**: Navigation reduced from 15 to 8 menu items ✓
