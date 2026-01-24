@@ -119,6 +119,74 @@ Plans:
 
 ---
 
+## Phase 6: Kit Identification & Branding
+**Goal**: Gateway has unique identity (kit name) and customizable branding (logo, favicon, theme)
+
+**Depends on**: Phase 5 (System tab exists for Admin section)
+
+**Requirements**: KIT-01, KIT-02, KIT-03, KIT-04, BRAND-01, BRAND-02, BRAND-03, BRAND-04, BRAND-05, THEME-01, THEME-02
+
+**Success Criteria** (what must be TRUE):
+1. User can configure kit name (e.g., DBKIT25EU-0099) in System > Admin tab
+2. Kit name appears on login page and in app header
+3. Kit name is used as WLAN Access Point SSID
+4. User can upload custom logo and favicon in Admin
+5. Custom logo appears on login page and in app header
+6. Custom favicon is used by browser
+7. User can toggle dark/light mode via header button
+8. Theme preference persists across sessions
+
+**Plans:** TBD
+
+Plans:
+- [ ] 06-01-PLAN.md — Backend Branding Service (kit config, file storage)
+- [ ] 06-02-PLAN.md — Backend Branding API (endpoints for config and uploads)
+- [ ] 06-03-PLAN.md — Frontend Admin View (kit name, logo/favicon upload)
+- [ ] 06-04-PLAN.md — Frontend Branding Integration (Login, Header, Theme toggle)
+
+---
+
+## Phase 7: UI Layout Fixes
+**Goal**: Content is properly visible without scrolling issues across all views
+
+**Depends on**: Phase 5 (menu restructuring complete)
+
+**Requirements**: UI-01, UI-02, UI-03, UI-04
+
+**Success Criteria** (what must be TRUE):
+1. All views display full content without bottom cutoff
+2. Scroll works correctly in all tabbed views
+3. Layout is consistent across Chrome and Safari
+4. No double-scrollbar issues
+
+**Plans:** TBD
+
+Plans:
+- [ ] 07-01-PLAN.md — Layout overflow fixes (CSS, v-main height)
+
+---
+
+## Phase 8: Critical Bugfixes
+**Goal**: Fix known bugs in Dashboard, ThingsBoard, and Backup
+
+**Depends on**: Phase 6 (branding may affect Dashboard display)
+
+**Requirements**: BUG-01, BUG-02, BUG-03
+
+**Success Criteria** (what must be TRUE):
+1. Dashboard connectivity status matches actual ThingsBoard gateway state
+2. ThingsBoard access token is displayed in Authentication section
+3. Backup creation works without errors on Raspberry Pi
+
+**Plans:** TBD
+
+Plans:
+- [ ] 08-01-PLAN.md — Dashboard status fix
+- [ ] 08-02-PLAN.md — ThingsBoard token display fix
+- [ ] 08-03-PLAN.md — Backup creation fix
+
+---
+
 ## Requirements Reference
 
 ### NTP Configuration
@@ -145,3 +213,31 @@ Plans:
 - [x] **MENU-03**: System view combines Settings, NTP, Backup, and Admin as tabs ✓
 - [x] **MENU-04**: Monitoring view combines Diagnostics, Audit, and SMS Alerts as tabs ✓
 - [x] **MENU-05**: Navigation reduced from 15 to 8 menu items ✓
+
+### Kit Identification
+- [ ] **KIT-01**: User can configure kit name (e.g., DBKIT25EU-0099)
+- [ ] **KIT-02**: Kit name displayed on login page
+- [ ] **KIT-03**: Kit name displayed in app header
+- [ ] **KIT-04**: Kit name used as WLAN Access Point SSID
+
+### Branding
+- [ ] **BRAND-01**: User can upload custom logo in Admin
+- [ ] **BRAND-02**: User can upload custom favicon in Admin
+- [ ] **BRAND-03**: Custom logo displayed on login page
+- [ ] **BRAND-04**: Custom logo displayed in app header
+- [ ] **BRAND-05**: Custom favicon used by browser
+
+### Theme
+- [ ] **THEME-01**: User can toggle dark/light mode in header
+- [ ] **THEME-02**: Theme preference persists across sessions
+
+### UI Layout
+- [ ] **UI-01**: Content visible without bottom cutoff in all views
+- [ ] **UI-02**: Scroll works correctly in tabbed views
+- [ ] **UI-03**: Layout consistent across Chrome and Safari
+- [ ] **UI-04**: No double-scrollbar issues
+
+### Bugfixes
+- [ ] **BUG-01**: Dashboard connectivity status matches ThingsBoard state
+- [ ] **BUG-02**: ThingsBoard access token displayed in Authentication
+- [ ] **BUG-03**: Backup creation works on Raspberry Pi
