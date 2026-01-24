@@ -41,7 +41,12 @@ Plans:
 3. User can restore from uploaded backup
 4. Backup includes all critical configs (VPN, modem, serial, etc.)
 
-**Plans:** (created by /gsd:plan-phase)
+**Plans:** 3 plans
+
+Plans:
+- [ ] 02-01-PLAN.md - Backend Backup Service (tar.gz creation, manifest, validation)
+- [ ] 02-02-PLAN.md - Backend Backup API + Models (endpoints, schemas)
+- [ ] 02-03-PLAN.md - Frontend Backup View (Vue component, UI)
 
 ---
 
