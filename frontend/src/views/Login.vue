@@ -3,8 +3,11 @@
     <v-row align="center" justify="center">
       <v-col cols="12" sm="8" md="4">
         <v-card class="elevation-12">
+          <!-- Logo above toolbar if configured -->
+          <div v-if="hasLogo" class="d-flex justify-center pa-4 bg-grey-lighten-4">
+            <v-img :src="logoUrl" max-height="80" max-width="200" contain />
+          </div>
           <v-toolbar color="primary" dark flat>
-            <v-img v-if="hasLogo" :src="logoUrl" height="32" width="32" class="ml-2 mr-2" />
             <v-toolbar-title v-if="isLoaded">{{ kitName }}</v-toolbar-title>
             <v-progress-circular v-else indeterminate size="20" />
           </v-toolbar>
