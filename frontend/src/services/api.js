@@ -211,3 +211,29 @@ export const networkApi = {
       target
     }),
 }
+
+// Branding API
+export const brandingApi = {
+  getConfig: () => api.get('/api/branding/config'),
+  updateConfig: (config) => api.put('/api/branding/config', config),
+
+  uploadLogo: (file) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    return api.post('/api/branding/logo', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+  },
+  deleteLogo: () => api.delete('/api/branding/logo'),
+  getLogoUrl: () => '/api/branding/logo',
+
+  uploadFavicon: (file) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    return api.post('/api/branding/favicon', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+  },
+  deleteFavicon: () => api.delete('/api/branding/favicon'),
+  getFaviconUrl: () => '/api/branding/favicon'
+}
