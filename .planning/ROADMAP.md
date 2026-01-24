@@ -95,6 +95,30 @@ Plans:
 
 ---
 
+## Phase 5: Menu Restructuring
+**Goal**: Navigation is simplified from 15 to 8 menu items with logical tab-based grouping
+
+**Depends on**: Nothing (UI reorganization, independent of v1.0)
+
+**Requirements**: MENU-01, MENU-02, MENU-03, MENU-04, MENU-05
+
+**Success Criteria** (what must be TRUE):
+1. User sees 8 menu items in navigation instead of 15 separate items
+2. User can access Modem and Serial configurations as tabs within Interfaces view
+3. User can access Failover, VPN, and WiFi configurations as tabs within Network view
+4. User can access Settings, NTP, Backup, and Admin as tabs within System view
+5. User can access Diagnostics, Audit, and SMS Alerts as tabs within Monitoring view
+
+**Plans:** 4 plans
+
+Plans:
+- [ ] 05-01-PLAN.md — Create parent container views (Interfaces, Network, System, Monitoring)
+- [ ] 05-02-PLAN.md — Restructure router with nested routes and redirects
+- [ ] 05-03-PLAN.md — Adapt child components (remove containers, keep logic)
+- [ ] 05-04-PLAN.md — Update App.vue menu and verify navigation
+
+---
+
 ## Requirements Reference
 
 ### NTP Configuration
@@ -114,3 +138,10 @@ Plans:
 ### SMS Alerts
 - [x] **SMS-01**: User can configure SMS alert recipients ✓
 - [x] **SMS-02**: System sends SMS via AT commands on Quectel modem ✓
+
+### Menu Restructuring
+- [ ] **MENU-01**: Interfaces view combines Modem and Serial as tabs
+- [ ] **MENU-02**: Network view combines Failover, VPN, and WiFi as tabs
+- [ ] **MENU-03**: System view combines Settings, NTP, Backup, and Admin as tabs
+- [ ] **MENU-04**: Monitoring view combines Diagnostics, Audit, and SMS Alerts as tabs
+- [ ] **MENU-05**: Navigation reduced from 15 to 8 menu items
