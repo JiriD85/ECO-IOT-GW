@@ -13,6 +13,41 @@ import '@mdi/font/css/materialdesignicons.css'
 const vuetify = createVuetify({
   components,
   directives,
+  defaults: {
+    VCard: {
+      elevation: 1
+    },
+    VTextField: {
+      density: 'compact',
+      variant: 'outlined',
+      hideDetails: 'auto'
+    },
+    VSelect: {
+      density: 'compact',
+      variant: 'outlined',
+      hideDetails: 'auto'
+    },
+    VSwitch: {
+      density: 'compact',
+      hideDetails: true,
+      color: 'primary'
+    },
+    VCheckbox: {
+      density: 'compact',
+      hideDetails: true,
+      color: 'primary'
+    },
+    VBtn: {
+      size: 'small'
+    },
+    VChip: {
+      size: 'small'
+    },
+    VAlert: {
+      density: 'compact',
+      variant: 'tonal'
+    }
+  },
   theme: {
     defaultTheme: 'dark',
     themes: {
