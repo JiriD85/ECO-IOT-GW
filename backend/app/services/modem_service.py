@@ -1,14 +1,21 @@
 """
 ECO-IOT-GW Modem Service
 Quectel modem management via AT commands and NetworkManager
+
+Handles:
+- Modem status and signal info via AT commands
+- APN/connection configuration via NetworkManager
+- SMS sending via AT+CMGS commands
+- Thread-safe serial port access
 """
 import json
 import logging
 import re
 import subprocess
+import threading
 import time
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 
 import serial
 
@@ -27,6 +34,7 @@ class ModemService:
         self._port = settings.MODEM_DEFAULT_PORT
         self._baudrate = settings.MODEM_BAUDRATE
         self._config: Optional[ModemConfig] = None
+        self._serial_lock = threading.Lock()  # Thread-safe serial access
         self._load_config()
 
     def _load_config(self):
@@ -88,29 +96,30 @@ class ModemService:
         return None
 
     def send_at_command(self, command: str, timeout: float = 2.0) -> str:
-        """Send AT command and return response."""
+        """Send AT command and return response (thread-safe)."""
         port = self._find_modem_port()
         if not port:
             raise RuntimeError("Modem not found")
 
-        try:
-            with serial.Serial(port, self._baudrate, timeout=timeout) as ser:
-                # Send command
-                if not command.endswith('\r'):
-                    command += '\r'
-                ser.write(command.encode())
+        with self._serial_lock:
+            try:
+                with serial.Serial(port, self._baudrate, timeout=timeout) as ser:
+                    # Send command
+                    if not command.endswith('\r'):
+                        command += '\r'
+                    ser.write(command.encode())
 
-                # Wait and read response
-                time.sleep(0.5)
-                response = ""
-                while ser.in_waiting:
-                    response += ser.read(ser.in_waiting).decode('utf-8', errors='ignore')
-                    time.sleep(0.1)
+                    # Wait and read response
+                    time.sleep(0.5)
+                    response = ""
+                    while ser.in_waiting:
+                        response += ser.read(ser.in_waiting).decode('utf-8', errors='ignore')
+                        time.sleep(0.1)
 
-                return response.strip()
+                    return response.strip()
 
-        except Exception as e:
-            raise RuntimeError(f"AT command failed: {e}")
+            except Exception as e:
+                raise RuntimeError(f"AT command failed: {e}")
 
     def get_status(self) -> ModemStatus:
         """Get modem status."""
@@ -306,6 +315,116 @@ class ModemService:
             logger.info("Modem reset initiated")
         except Exception as e:
             raise RuntimeError(f"Failed to reset modem: {e}")
+
+    def check_sms_ready(self) -> Tuple[bool, str]:
+        """
+        Check if modem is ready for SMS operations.
+
+        Returns:
+            Tuple of (ready: bool, message: str)
+        """
+        try:
+            # Check SIM status
+            response = self.send_at_command("AT+CPIN?")
+            if "READY" in response:
+                return True, "SIM ready"
+            elif "SIM PIN" in response:
+                return False, "SIM requires PIN"
+            elif "SIM PUK" in response:
+                return False, "SIM blocked, PUK required"
+            else:
+                return False, f"SIM not ready: {response}"
+        except Exception as e:
+            return False, str(e)
+
+    def send_sms(self, phone_number: str, message: str) -> Tuple[bool, str]:
+        """
+        Send SMS message via AT commands.
+
+        Args:
+            phone_number: Destination phone number (E.164 format)
+            message: Message text (max 160 chars for GSM-7)
+
+        Returns:
+            Tuple of (success: bool, message_or_error: str)
+            On success, returns message reference from +CMGS response
+        """
+        # Truncate message to 160 chars (GSM-7 safe length)
+        if len(message) > 160:
+            message = message[:157] + "..."
+            logger.warning("SMS message truncated to 160 characters")
+
+        port = self._find_modem_port()
+        if not port:
+            return False, "Modem not found"
+
+        with self._serial_lock:
+            try:
+                with serial.Serial(port, self._baudrate, timeout=30) as ser:
+                    # Check SIM ready
+                    ser.write(b"AT+CPIN?\r")
+                    time.sleep(0.5)
+                    response = ser.read(ser.in_waiting).decode('utf-8', errors='ignore')
+                    if "READY" not in response:
+                        return False, f"SIM not ready: {response}"
+
+                    # Set text mode
+                    ser.write(b"AT+CMGF=1\r")
+                    time.sleep(0.3)
+                    response = ser.read(ser.in_waiting).decode('utf-8', errors='ignore')
+                    if "OK" not in response:
+                        return False, f"Failed to set text mode: {response}"
+
+                    # Set GSM charset for better compatibility
+                    ser.write(b'AT+CSCS="GSM"\r')
+                    time.sleep(0.3)
+                    ser.read(ser.in_waiting)  # Clear buffer
+
+                    # Send AT+CMGS with phone number
+                    cmgs_cmd = f'AT+CMGS="{phone_number}"\r'
+                    ser.write(cmgs_cmd.encode())
+                    time.sleep(0.5)
+
+                    # Wait for '>' prompt
+                    response = ser.read(ser.in_waiting).decode('utf-8', errors='ignore')
+                    if '>' not in response:
+                        # Cancel the command
+                        ser.write(b'\x1b')  # ESC
+                        return False, f"No prompt received: {response}"
+
+                    # Send message text + Ctrl-Z
+                    ser.write(message.encode('utf-8', errors='replace'))
+                    ser.write(b'\x1a')  # Ctrl-Z
+
+                    # Wait for response (up to 30 seconds)
+                    start_time = time.time()
+                    response = ""
+                    while time.time() - start_time < 30:
+                        time.sleep(0.5)
+                        if ser.in_waiting:
+                            response += ser.read(ser.in_waiting).decode('utf-8', errors='ignore')
+                            if "+CMGS:" in response or "ERROR" in response:
+                                break
+
+                    # Parse response
+                    if "+CMGS:" in response:
+                        # Extract message reference
+                        match = re.search(r'\+CMGS:\s*(\d+)', response)
+                        msg_ref = match.group(1) if match else "unknown"
+                        logger.info(f"SMS sent successfully to {phone_number}, ref: {msg_ref}")
+                        return True, msg_ref
+
+                    elif "ERROR" in response:
+                        logger.error(f"SMS send failed: {response}")
+                        return False, f"SMS error: {response}"
+
+                    else:
+                        logger.error(f"SMS timeout or unknown response: {response}")
+                        return False, f"Timeout or unknown response: {response}"
+
+            except Exception as e:
+                logger.error(f"SMS send exception: {e}")
+                return False, str(e)
 
 
 # Global modem service instance

@@ -601,6 +601,45 @@ class ConnectivityTestResponse(BaseModel):
 
 
 # =============================================================================
+# SMS Models
+# =============================================================================
+
+class SMSRecipient(BaseModel):
+    """SMS recipient configuration."""
+    name: str = Field(..., min_length=1, max_length=50)
+    phone: str = Field(..., min_length=1, max_length=20)  # Stored as E.164
+    enabled: bool = True
+
+
+class SMSTrigger(BaseModel):
+    """SMS trigger configuration."""
+    event_type: str = Field(..., pattern="^(vpn_down|modem_down|network_failover|backup_failed)$")
+    enabled: bool = True
+    cooldown_minutes: int = Field(default=30, ge=0, le=1440)
+
+
+class SMSConfig(BaseModel):
+    """SMS alert configuration."""
+    enabled: bool = False
+    recipients: List[SMSRecipient] = Field(default_factory=list)
+    triggers: List[SMSTrigger] = Field(default_factory=list)
+    default_region: str = Field(default="CZ", pattern="^[A-Z]{2}$")
+
+
+class SMSTestRequest(BaseModel):
+    """SMS test request."""
+    phone: str = Field(..., min_length=1, max_length=20)
+    message: Optional[str] = None
+
+
+class SMSTestResponse(BaseModel):
+    """SMS test response."""
+    success: bool
+    message: str
+    message_reference: Optional[str] = None
+
+
+# =============================================================================
 # Generic Response Models
 # =============================================================================
 
