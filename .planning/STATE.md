@@ -6,16 +6,16 @@ See: .planning/PROJECT.md (updated 2026-01-24)
 
 **Core value:** System-Level-Konfiguration des IoT Gateways uber eine einfache Web-UI, ohne die ThingsBoard Gateway Config zu beruhren (MQTT-Sync vom Server)
 
-**Current focus:** Phase 2 - Backup & Restore
+**Current focus:** Phase 3 - Network Failover
 
 ## Current Position
 
-Phase: 2 of 4 (Backup & Restore)
-Plan: 3 of 3
-Status: Phase complete
-Last activity: 2026-01-24 - Completed 02-03-PLAN.md (Frontend Backup View)
+Phase: 3 of 4 (Network Failover)
+Plan: 1 of 3
+Status: In progress
+Last activity: 2026-01-24 - Completed 03-01-PLAN.md (Backend Network Service)
 
-Progress: [██████████████████] 50%
+Progress: [███████████████████░] 58%
 
 ## Accumulated Context
 
@@ -41,6 +41,11 @@ Progress: [██████████████████] 50%
 - Require validation before enabling restore button (02-03)
 - Show manifest info (created_at, hostname, app_version) after validation (02-03)
 - Confirmation dialog for restore to prevent accidental overwrites (02-03)
+- Use asyncio.create_subprocess_exec for non-blocking subprocess calls (03-01)
+- Multiple ping targets (1.1.1.1, 8.8.8.8) for redundancy (03-01)
+- Configure both IPv4 and IPv6 route metrics (03-01)
+- Validate all interface names to prevent command injection (03-01)
+- Default metrics: Ethernet=100, LTE=200 (lower=higher priority) (03-01)
 
 ### Patterns Established
 
@@ -63,6 +68,11 @@ Progress: [██████████████████] 50%
 - Validation-before-restore workflow pattern (02-03)
 - Confirmation dialog for destructive operations (02-03)
 - backupApi pattern: blob responseType for downloads, FormData for uploads (02-03)
+- _run_command_async: Async subprocess wrapper using asyncio.create_subprocess_exec (03-01)
+- Interface validation: Regex pattern for alphanumeric, dash, underscore only (03-01)
+- Multiple health check targets: Avoid single point of failure (03-01)
+- Graceful degradation: Optional library imports with try/except (03-01)
+- Audit logging: All configuration changes logged with username/IP (03-01)
 
 ### Pending TODOs
 
@@ -74,10 +84,10 @@ None
 
 ## Session Continuity
 
-Last session: 2026-01-24T12:42:00Z
-Stopped at: Phase 2 complete - deployed and verified on gateway
+Last session: 2026-01-24T13:12:08Z
+Stopped at: Completed 03-01-PLAN.md (Backend Network Service)
 Resume file: None
-Next: /gsd:plan-phase 3 for Network Failover
+Next: /gsd:plan 03-02 for Network Failover API
 
 ## Phase 1 Plans
 
@@ -94,3 +104,11 @@ Next: /gsd:plan-phase 3 for Network Failover
 | 02-01 | 1 | Complete | Backend Backup Service |
 | 02-02 | 2 | Complete | Backend Backup API + Models |
 | 02-03 | 3 | Complete | Frontend Backup View |
+
+## Phase 3 Plans
+
+| Plan | Wave | Status | Description |
+|------|------|--------|-------------|
+| 03-01 | 1 | Complete | Backend Network Service |
+| 03-02 | 2 | Pending | Backend Network API + Models |
+| 03-03 | 3 | Pending | Frontend Network Failover View |
