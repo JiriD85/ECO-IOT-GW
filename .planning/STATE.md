@@ -10,12 +10,12 @@ See: .planning/PROJECT.md (updated 2026-01-24)
 
 ## Current Position
 
-Phase: 1 of 4 (NTP Configuration) - COMPLETE
-Plan: 3 of 3
-Status: Phase 1 complete, ready for Phase 2
-Last activity: 2026-01-24 - Phase 1 deployed and verified on gateway
+Phase: 2 of 4 (Backup & Restore)
+Plan: 1 of 3
+Status: In progress
+Last activity: 2026-01-24 - Completed 02-01-PLAN.md (BackupService)
 
-Progress: [██████████] 100%
+Progress: [████████████░░] 25%
 
 ## Accumulated Context
 
@@ -31,6 +31,10 @@ Progress: [██████████] 100%
 - PUT /timezone accessible to all authenticated users (not admin-only) for user preference (01-02)
 - Added POST /restart endpoint for explicit chrony service restart (01-02)
 - TimezoneRequest model for body-based timezone updates (01-02)
+- tar.gz with PAX_FORMAT for broad compatibility and large file support (02-01)
+- Manifest version 1.0 as first member for fast validation (02-01)
+- Two-pass extraction: validate all members before extracting any (02-01)
+- WireGuard configs get 600, OpenVPN configs get 644 permissions (02-01)
 
 ### Patterns Established
 
@@ -43,6 +47,8 @@ Progress: [██████████] 100%
 - Frontend: ntpApi object pattern in api.js for API grouping (01-03)
 - Frontend: v-autocomplete for searchable dropdowns like timezone (01-03)
 - Deploy: Single SSH session with tar pipe to avoid fail2ban lockout
+- Backup: Security validation before extraction - absolute paths, path traversal, symlinks (02-01)
+- Backup: Audit logging for both create and restore with success/failure tracking (02-01)
 
 ### Pending TODOs
 
@@ -54,10 +60,10 @@ None
 
 ## Session Continuity
 
-Last session: 2026-01-24T12:05:00Z
-Stopped at: Phase 1 complete - deployed and verified on gateway
+Last session: 2026-01-24T11:31:27Z
+Stopped at: Completed 02-01-PLAN.md (BackupService)
 Resume file: None
-Next: /gsd:plan-phase 2 for Backup & Restore
+Next: Execute 02-02-PLAN.md (Backup API)
 
 ## Phase 1 Plans
 
@@ -66,3 +72,11 @@ Next: /gsd:plan-phase 2 for Backup & Restore
 | 01-01 | 1 | Complete | Backend NTP Service |
 | 01-02 | 2 | Complete | Backend NTP API + Models |
 | 01-03 | 3 | Complete | Frontend NTP View |
+
+## Phase 2 Plans
+
+| Plan | Wave | Status | Description |
+|------|------|--------|-------------|
+| 02-01 | 1 | Complete | Backend Backup Service |
+| 02-02 | 2 | Pending | Backend Backup API + Models |
+| 02-03 | 3 | Pending | Frontend Backup View |
