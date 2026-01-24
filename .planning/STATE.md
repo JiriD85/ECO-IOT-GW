@@ -11,11 +11,11 @@ See: .planning/PROJECT.md (updated 2026-01-24)
 ## Current Position
 
 Phase: 1 of 4 (NTP Configuration)
-Plan: 0 of 3
-Status: Planning complete, ready to execute
-Last activity: 2026-01-24 - Phase 1 plans created
+Plan: 1 of 3
+Status: In progress
+Last activity: 2026-01-24 - Completed 01-01-PLAN.md
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [███░░░░░░░] 33%
 
 ## Accumulated Context
 
@@ -25,12 +25,16 @@ Progress: [░░░░░░░░░░] 0%
 - Backup als tar.gz - Einfach, portabel, kein spezieller Client notig
 - Failover via ip route - Keine zusatzliche Software notig, Standard-Linux
 - SMS via AT-Commands - Quectel Modem bereits vorhanden
+- _run_command wrapper for subprocess with sudo support (01-01)
+- Cached timezone list for performance (01-01)
+- Auto-include IoT-critical chrony settings: makestep 1 3, iburst, maxpoll 10 (01-01)
 
 ### Patterns Established
 
 - Backend: FastAPI router in api/, service in services/
 - Frontend: Vue component in views/, API in services/api.js
 - Audit: All config changes logged via audit_service
+- NTP: _run_command wrapper for subprocess with timeout and sudo support (01-01)
 
 ### Pending TODOs
 
@@ -40,10 +44,16 @@ None
 
 None
 
+## Session Continuity
+
+Last session: 2026-01-24T10:45:28Z
+Stopped at: Completed 01-01-PLAN.md
+Resume file: None
+
 ## Phase 1 Plans
 
 | Plan | Wave | Status | Description |
 |------|------|--------|-------------|
-| 01-01 | 1 | Ready | Backend NTP Service |
+| 01-01 | 1 | Complete | Backend NTP Service |
 | 01-02 | 2 | Ready | Backend NTP API + Models |
 | 01-03 | 3 | Ready | Frontend NTP View |
