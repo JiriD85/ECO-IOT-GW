@@ -22,9 +22,9 @@ System-level configuration of IoT Gateway via web UI, without touching ThingsBoa
 **Plans:** 3 plans
 
 Plans:
-- [ ] 01-01-PLAN.md - Backend NTP Service (chrony config, status)
-- [ ] 01-02-PLAN.md - Backend NTP API + Models (endpoints, schemas)
-- [ ] 01-03-PLAN.md - Frontend NTP View (Vue component, UI)
+- [x] 01-01-PLAN.md - Backend NTP Service (chrony config, status) ✓
+- [x] 01-02-PLAN.md - Backend NTP API + Models (endpoints, schemas) ✓
+- [x] 01-03-PLAN.md - Frontend NTP View (Vue component, UI) ✓
 
 ---
 
@@ -81,9 +81,9 @@ Plans:
 ## Requirements Reference
 
 ### NTP Configuration
-- [ ] **NTP-01**: User can configure chrony NTP servers and pools via web UI
-- [ ] **NTP-02**: User can set system time zone from dropdown list
-- [ ] **NTP-03**: User can view NTP sync status including offset, jitter, and stratum
+- [x] **NTP-01**: User can configure chrony NTP servers and pools via web UI ✓
+- [x] **NTP-02**: User can set system time zone from dropdown list ✓
+- [x] **NTP-03**: User can view NTP sync status including offset, jitter, and stratum ✓
 
 ### Backup & Restore
 - [ ] **BACKUP-01**: User can create full system backup

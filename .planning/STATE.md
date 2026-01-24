@@ -6,16 +6,16 @@ See: .planning/PROJECT.md (updated 2026-01-24)
 
 **Core value:** System-Level-Konfiguration des IoT Gateways uber eine einfache Web-UI, ohne die ThingsBoard Gateway Config zu beruhren (MQTT-Sync vom Server)
 
-**Current focus:** Phase 1 - NTP Configuration
+**Current focus:** Phase 2 - Backup & Restore
 
 ## Current Position
 
-Phase: 1 of 4 (NTP Configuration)
-Plan: 2 of 3
-Status: In progress
-Last activity: 2026-01-24 - Completed 01-02-PLAN.md
+Phase: 1 of 4 (NTP Configuration) - COMPLETE
+Plan: 3 of 3
+Status: Phase 1 complete, ready for Phase 2
+Last activity: 2026-01-24 - Phase 1 deployed and verified on gateway
 
-Progress: [██████░░░░] 67%
+Progress: [██████████] 100%
 
 ## Accumulated Context
 
@@ -40,6 +40,9 @@ Progress: [██████░░░░] 67%
 - NTP: _run_command wrapper for subprocess with timeout and sudo support (01-01)
 - NTP API routes at /api/ntp/* following existing router patterns (01-02)
 - Config changes require admin role, status/read operations require any authenticated user (01-02)
+- Frontend: ntpApi object pattern in api.js for API grouping (01-03)
+- Frontend: v-autocomplete for searchable dropdowns like timezone (01-03)
+- Deploy: Single SSH session with tar pipe to avoid fail2ban lockout
 
 ### Pending TODOs
 
@@ -51,9 +54,10 @@ None
 
 ## Session Continuity
 
-Last session: 2026-01-24T10:48:50Z
-Stopped at: Completed 01-02-PLAN.md
+Last session: 2026-01-24T12:05:00Z
+Stopped at: Phase 1 complete - deployed and verified on gateway
 Resume file: None
+Next: /gsd:plan-phase 2 for Backup & Restore
 
 ## Phase 1 Plans
 
@@ -61,4 +65,4 @@ Resume file: None
 |------|------|--------|-------------|
 | 01-01 | 1 | Complete | Backend NTP Service |
 | 01-02 | 2 | Complete | Backend NTP API + Models |
-| 01-03 | 3 | Ready | Frontend NTP View |
+| 01-03 | 3 | Complete | Frontend NTP View |
