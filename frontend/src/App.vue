@@ -76,17 +76,10 @@ const menuItems = [
   { title: 'Docker', icon: 'mdi-docker', path: '/docker' },
   { title: 'ThingsBoard', icon: 'mdi-cloud-sync', path: '/thingsboard' },
   { title: 'Terminal', icon: 'mdi-console', path: '/terminal' },
-  { title: 'VPN', icon: 'mdi-vpn', path: '/vpn' },
-  { title: 'Diagnostics', icon: 'mdi-chart-line', path: '/diagnostics' },
-  { title: 'Modem', icon: 'mdi-antenna', path: '/modem' },
-  { title: 'Serial', icon: 'mdi-serial-port', path: '/serial' },
-  { title: 'WiFi AP', icon: 'mdi-wifi', path: '/wifi' },
-  { title: 'System', icon: 'mdi-cog', path: '/system' },
-  { title: 'NTP', icon: 'mdi-clock-outline', path: '/ntp' },
-  { title: 'Backup', icon: 'mdi-backup-restore', path: '/backup' },
-  { title: 'Network', icon: 'mdi-swap-horizontal', path: '/network' },
-  { title: 'SMS Alerts', icon: 'mdi-message-text', path: '/sms-alerts' },
-  { title: 'Audit Log', icon: 'mdi-clipboard-text', path: '/audit' }
+  { title: 'Interfaces', icon: 'mdi-ethernet', path: '/interfaces' },
+  { title: 'Network', icon: 'mdi-network', path: '/network' },
+  { title: 'System', icon: 'mdi-cog-outline', path: '/system' },
+  { title: 'Monitoring', icon: 'mdi-monitor-dashboard', path: '/monitoring' }
 ]
 
 const logout = async () => {
