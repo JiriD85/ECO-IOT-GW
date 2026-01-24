@@ -78,6 +78,12 @@ const routes = [
     name: 'Backup',
     component: () => import('../views/Backup.vue'),
     meta: { requiresAuth: true }
+  },
+  {
+    path: '/network',
+    name: 'NetworkStatus',
+    component: () => import('../views/NetworkStatus.vue'),
+    meta: { requiresAuth: true }
   }
 ]
 
