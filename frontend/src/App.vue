@@ -35,7 +35,7 @@
           :key="item.path"
           :to="item.path"
           :prepend-icon="item.icon"
-          :title="item.title"
+          :title="rail ? '' : item.title"
         ></v-list-item>
       </v-list>
 
@@ -43,7 +43,7 @@
         <v-list density="compact" nav>
           <v-list-item
             prepend-icon="mdi-logout"
-            title="Logout"
+            :title="rail ? '' : 'Logout'"
             @click="logout"
           ></v-list-item>
         </v-list>
