@@ -82,6 +82,7 @@ const menuItems = [
   { title: 'Serial', icon: 'mdi-serial-port', path: '/serial' },
   { title: 'WiFi AP', icon: 'mdi-wifi', path: '/wifi' },
   { title: 'System', icon: 'mdi-cog', path: '/system' },
+  { title: 'NTP', icon: 'mdi-clock-outline', path: '/ntp' },
   { title: 'Audit Log', icon: 'mdi-clipboard-text', path: '/audit' }
 ]
 
