@@ -58,6 +58,12 @@ const routes = [
     component: () => import('../views/SystemSettings.vue')
   },
   {
+    path: '/ntp',
+    name: 'NtpConfig',
+    component: () => import('../views/NtpConfig.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
     path: '/audit',
     name: 'Audit',
     component: () => import('../views/AuditLog.vue')
