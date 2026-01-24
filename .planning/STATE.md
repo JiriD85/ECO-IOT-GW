@@ -81,6 +81,10 @@ Progress: [██████░░░░] 67% (5.67/8 phases complete - 2/3 pla
 - Development mode fallback to ~/.eco-iot-gw/ when /etc not available (06-01)
 - WiFi SSID update is optional via update_wifi_ssid flag (06-01)
 - Continue branding update even if WiFi update fails (06-01)
+- Logo max 1MB, favicon max 100KB with file type validation (06-03)
+- Cache-busting query params for asset URLs to force refresh (06-03)
+- Admin role required for save with visual indicator when disabled (06-03)
+- File upload with preview using FileReader API (06-03)
 - GET /config and GET /logo, GET /favicon are public (no auth required for login page) (06-02)
 - All modification endpoints (PUT/POST/DELETE) require admin role (06-02)
 - Follow backup.py pattern for file uploads with UploadFile (06-02)
@@ -129,6 +133,9 @@ Progress: [██████░░░░] 67% (5.67/8 phases complete - 2/3 pla
 - Tab metadata: tabLabel and tabIcon in child route meta for UI rendering (05-02)
 - Child component adaptation: remove v-container wrapper and h1 title for tab embedding (05-03)
 - Direct content start pattern: templates begin with v-row when embedded in parent tabs (05-03)
+- File upload with preview pattern: FileReader + v-file-input + v-img (06-03)
+- Delete confirmation for destructive actions on existing assets (06-03)
+- brandingApi pattern: API grouping for branding-related endpoints in api.js (06-03)
 - Asset storage pattern: binary file + .meta text file for content type (06-01)
 - Service validates file size and content type before accepting uploads (06-01)
 - Config operations return status object with has_logo, has_favicon flags (06-01)
@@ -147,9 +154,9 @@ None
 ## Session Continuity
 
 Last session: 2026-01-24T14:50:19Z
-Stopped at: Completed 06-02-PLAN.md (Branding API)
+Stopped at: Completed 06-03-PLAN.md (Frontend Branding UI)
 Resume file: None
-Next: 06-03-PLAN.md (Frontend Branding UI)
+Next: Phase 7
 
 ### Deployment Notes (Phase 3)
 - Deployed to gateway 192.168.1.69
@@ -217,4 +224,4 @@ Next: 06-03-PLAN.md (Frontend Branding UI)
 |------|------|--------|-------------|
 | 06-01 | 1 | Complete | Backend Branding Service |
 | 06-02 | 2 | Complete | Backend Branding API |
-| 06-03 | 3 | Pending | Frontend Branding UI |
+| 06-03 | 3 | Complete | Frontend Branding UI |
