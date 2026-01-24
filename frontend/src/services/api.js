@@ -168,6 +168,28 @@ export const backupApi = {
   }
 }
 
+// SMS Alerts API
+export const smsApi = {
+  // Configuration
+  getConfig: () => api.get('/api/sms/config'),
+  setConfig: (config) => api.put('/api/sms/config', config),
+
+  // Recipients
+  addRecipient: (recipient) => api.post('/api/sms/recipients', recipient),
+  removeRecipient: (name) => api.delete(`/api/sms/recipients/${encodeURIComponent(name)}`),
+
+  // Phone validation
+  validateNumber: (phone, region = 'CZ') => api.post('/api/sms/validate-number', null, {
+    params: { phone, region }
+  }),
+
+  // Test SMS
+  testSms: (phone, message = null) => api.post('/api/sms/test', { phone, message }),
+
+  // Get available triggers
+  getTriggers: () => api.get('/api/sms/triggers')
+}
+
 // Network Failover API
 export const networkApi = {
   // Get current network status for all interfaces

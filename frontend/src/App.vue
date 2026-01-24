@@ -85,6 +85,7 @@ const menuItems = [
   { title: 'NTP', icon: 'mdi-clock-outline', path: '/ntp' },
   { title: 'Backup', icon: 'mdi-backup-restore', path: '/backup' },
   { title: 'Network', icon: 'mdi-swap-horizontal', path: '/network' },
+  { title: 'SMS Alerts', icon: 'mdi-message-text', path: '/sms-alerts' },
   { title: 'Audit Log', icon: 'mdi-clipboard-text', path: '/audit' }
 ]
 

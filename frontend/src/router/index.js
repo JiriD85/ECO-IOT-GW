@@ -84,6 +84,12 @@ const routes = [
     name: 'NetworkStatus',
     component: () => import('../views/NetworkStatus.vue'),
     meta: { requiresAuth: true }
+  },
+  {
+    path: '/sms-alerts',
+    name: 'SmsAlerts',
+    component: () => import('../views/SmsAlerts.vue'),
+    meta: { requiresAuth: true }
   }
 ]
 
