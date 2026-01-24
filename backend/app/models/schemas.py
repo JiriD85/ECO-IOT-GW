@@ -391,6 +391,82 @@ class ThingsBoardConfigResponse(BaseModel):
 
 
 # =============================================================================
+# NTP Models
+# =============================================================================
+
+class NTPServer(BaseModel):
+    """NTP server configuration."""
+    address: str = Field(..., min_length=1, max_length=255)
+    type: str = Field(default="server", pattern="^(server|pool)$")
+    options: Optional[str] = None  # e.g., "iburst maxpoll 10"
+
+
+class NTPConfig(BaseModel):
+    """NTP configuration model."""
+    servers: List[str] = Field(default_factory=list)
+    pools: List[str] = Field(default_factory=list)
+
+
+class NTPConfigRequest(BaseModel):
+    """NTP configuration update request."""
+    servers: List[str] = Field(default_factory=list)
+    pools: List[str] = Field(default_factory=list)
+
+    @field_validator("servers", "pools")
+    @classmethod
+    def validate_entries(cls, v):
+        if len(v) > 10:
+            raise ValueError("Maximum 10 entries allowed")
+        for entry in v:
+            if not entry or len(entry) > 255:
+                raise ValueError("Invalid server/pool address")
+        return v
+
+
+class NTPStatus(BaseModel):
+    """NTP synchronization status."""
+    synchronized: bool = False
+    reference_id: Optional[str] = None  # e.g., "GPS" or IP
+    stratum: Optional[int] = None  # 1-15, lower is better
+    ref_time: Optional[datetime] = None  # Last sync time
+    system_time: Optional[float] = None  # Offset in seconds
+    last_offset: Optional[float] = None  # Last measured offset
+    rms_offset: Optional[float] = None  # RMS offset (jitter indicator)
+    frequency: Optional[float] = None  # Frequency error in ppm
+    root_delay: Optional[float] = None
+    root_dispersion: Optional[float] = None
+    update_interval: Optional[float] = None
+    leap_status: Optional[str] = None
+    error: Optional[str] = None
+
+
+class NTPSource(BaseModel):
+    """NTP source status."""
+    mode: str  # '^' = server, '=' = peer, '#' = local
+    state: str  # '*' = current, '+' = combined, '-' = not combined, '?' = unreachable
+    name: str
+    stratum: Optional[int] = None
+    poll: Optional[int] = None  # Poll interval in seconds
+    reach: Optional[int] = None  # Reachability register (octal)
+    last_rx: Optional[str] = None  # Time since last response
+    last_sample: Optional[str] = None  # Offset info
+    is_selected: bool = False
+    is_combined: bool = False
+    is_reachable: bool = True
+
+
+class TimezoneInfo(BaseModel):
+    """Timezone information."""
+    current: str
+    available: List[str]
+
+
+class TimezoneRequest(BaseModel):
+    """Timezone update request."""
+    timezone: str = Field(..., min_length=1, max_length=64)
+
+
+# =============================================================================
 # Generic Response Models
 # =============================================================================
 
