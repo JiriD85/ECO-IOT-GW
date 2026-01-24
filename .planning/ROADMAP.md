@@ -44,9 +44,9 @@ Plans:
 **Plans:** 3 plans
 
 Plans:
-- [ ] 02-01-PLAN.md - Backend Backup Service (tar.gz creation, manifest, validation)
-- [ ] 02-02-PLAN.md - Backend Backup API + Models (endpoints, schemas)
-- [ ] 02-03-PLAN.md - Frontend Backup View (Vue component, UI)
+- [x] 02-01-PLAN.md - Backend Backup Service (tar.gz creation, manifest, validation) ✓
+- [x] 02-02-PLAN.md - Backend Backup API + Models (endpoints, schemas) ✓
+- [x] 02-03-PLAN.md - Frontend Backup View (Vue component, UI) ✓
 
 ---
 
@@ -91,9 +91,9 @@ Plans:
 - [x] **NTP-03**: User can view NTP sync status including offset, jitter, and stratum ✓
 
 ### Backup & Restore
-- [ ] **BACKUP-01**: User can create full system backup
-- [ ] **BACKUP-02**: User can download backup as tar.gz
-- [ ] **BACKUP-03**: User can restore from backup file
+- [x] **BACKUP-01**: User can create full system backup ✓
+- [x] **BACKUP-02**: User can download backup as tar.gz ✓
+- [x] **BACKUP-03**: User can restore from backup file ✓
 
 ### Network Failover
 - [ ] **FAILOVER-01**: System auto-switches between LTE and Ethernet
