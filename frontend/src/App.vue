@@ -81,8 +81,12 @@ const rail = ref(false)
 
 const isAuthenticated = computed(() => authStore.isAuthenticated)
 
-onMounted(() => {
+onMounted(async () => {
   loadBranding()
+  // Load user info if already authenticated (after page refresh)
+  if (authStore.isAuthenticated && !authStore.user) {
+    await authStore.fetchUser()
+  }
 })
 
 const menuItems = [
