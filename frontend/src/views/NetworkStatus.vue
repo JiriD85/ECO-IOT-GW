@@ -48,7 +48,7 @@
                 md="6"
               >
                 <v-card
-                  :color="iface.operational_status === 'up' ? 'success' : 'grey'"
+                  :color="iface.is_up ? 'success' : 'grey'"
                   variant="outlined"
                   :class="isActiveInterface(iface.name) ? 'border-success' : ''"
                   style="border-width: 2px;"
@@ -57,10 +57,10 @@
                     {{ iface.name }}
                     <v-spacer></v-spacer>
                     <v-chip
-                      :color="iface.operational_status === 'up' ? 'success' : 'error'"
+                      :color="iface.is_up ? 'success' : 'error'"
                       size="small"
                     >
-                      {{ iface.operational_status === 'up' ? 'UP' : 'DOWN' }}
+                      {{ iface.is_up ? 'UP' : 'DOWN' }}
                     </v-chip>
                     <v-chip
                       v-if="isActiveInterface(iface.name)"
@@ -73,17 +73,21 @@
                   </v-card-title>
                   <v-card-text>
                     <v-list density="compact">
-                      <v-list-item v-if="iface.ip_address">
-                        <v-list-item-title>IP Address</v-list-item-title>
-                        <template v-slot:append>{{ iface.ip_address }}</template>
+                      <v-list-item v-if="iface.speed_mbps">
+                        <v-list-item-title>Speed</v-list-item-title>
+                        <template v-slot:append>{{ iface.speed_mbps }} Mbps</template>
                       </v-list-item>
-                      <v-list-item v-if="iface.gateway">
-                        <v-list-item-title>Gateway</v-list-item-title>
-                        <template v-slot:append>{{ iface.gateway }}</template>
+                      <v-list-item>
+                        <v-list-item-title>MTU</v-list-item-title>
+                        <template v-slot:append>{{ iface.mtu }}</template>
                       </v-list-item>
-                      <v-list-item v-if="iface.metric !== null">
-                        <v-list-item-title>Route Metric</v-list-item-title>
-                        <template v-slot:append>{{ iface.metric }}</template>
+                      <v-list-item>
+                        <v-list-item-title>TX / RX</v-list-item-title>
+                        <template v-slot:append>{{ formatBytes(iface.bytes_sent) }} / {{ formatBytes(iface.bytes_recv) }}</template>
+                      </v-list-item>
+                      <v-list-item v-if="iface.errors_in || iface.errors_out">
+                        <v-list-item-title>Errors</v-list-item-title>
+                        <template v-slot:append>{{ iface.errors_in }} / {{ iface.errors_out }}</template>
                       </v-list-item>
                     </v-list>
                   </v-card-text>
@@ -264,6 +268,14 @@ const interfaceOptions = computed(() => {
 
 const isActiveInterface = (interfaceName) => {
   return networkStatus.value?.active_route?.interface === interfaceName
+}
+
+const formatBytes = (bytes) => {
+  if (bytes === 0) return '0 B'
+  const k = 1024
+  const sizes = ['B', 'KB', 'MB', 'GB']
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i]
 }
 
 // Methods
