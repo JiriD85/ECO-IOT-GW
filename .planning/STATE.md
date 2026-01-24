@@ -6,16 +6,16 @@ See: .planning/PROJECT.md (updated 2026-01-24)
 
 **Core value:** System-Level-Konfiguration des IoT Gateways uber eine einfache Web-UI, ohne die ThingsBoard Gateway Config zu beruhren (MQTT-Sync vom Server)
 
-**Current focus:** Phase 4 - SMS Alerts
+**Current focus:** Phase 5 - Menu Restructuring
 
 ## Current Position
 
-Phase: 4 of 4 (SMS Alerts) - DEPLOYED
-Plan: 4 of 4
-Status: Phase complete and deployed to gateway
-Last activity: 2026-01-24 - Phase 4 deployed to gateway
+Phase: 5 of 5 (Menu Restructuring)
+Plan: 1 of 3
+Status: In progress
+Last activity: 2026-01-24 - Completed 05-01-PLAN.md
 
-Progress: [████████████████████████████████] 100%
+Progress: [█████████████████████████████████░] 97%
 
 ## Accumulated Context
 
@@ -68,6 +68,9 @@ Progress: [███████████████████████
 - SMS test accessible to all authenticated users (04-02)
 - State machine for alerts: only OK→FAILED triggers SMS (04-04)
 - 60s check interval for SMS daemon (less aggressive than failover) (04-04)
+- Dynamic tab generation from router children instead of hard-coded arrays (05-01)
+- Route watcher pattern to keep tab state in sync with navigation (05-01)
+- Consistent parent container structure across all four views (05-01)
 
 ### Patterns Established
 
@@ -106,6 +109,9 @@ Progress: [███████████████████████
 - smsApi pattern: API grouping for SMS-related endpoints in api.js (04-03)
 - Trigger state tracking: transition detection (OK→FAILED only alerts) (04-04)
 - SMS daemon: asyncio monitoring loop with 60s interval (04-04)
+- Parent container pattern: v-container > v-card > v-tabs + router-view (05-01)
+- childRoutes computed: router.getRoutes().find(r => r.name === 'ParentName')?.children (05-01)
+- Tab sync: watch(() => route.path, (newPath) => currentTab.value = newPath) (05-01)
 
 ### Pending TODOs
 
@@ -117,10 +123,10 @@ None
 
 ## Session Continuity
 
-Last session: 2026-01-24T13:45:00Z
-Stopped at: Phase 3 deployed and verified on gateway
+Last session: 2026-01-24T14:15:34Z
+Stopped at: Completed 05-01-PLAN.md
 Resume file: None
-Next: All phases complete! Project milestone 1 finished.
+Next: Continue with 05-02 (Router restructure)
 
 ### Deployment Notes (Phase 3)
 - Deployed to gateway 192.168.1.69
@@ -172,3 +178,11 @@ Next: All phases complete! Project milestone 1 finished.
 | 04-02 | 2 | Complete | Backend SMS API (endpoints) |
 | 04-03 | 3 | Complete | Frontend SMS Alerts View |
 | 04-04 | 3 | Complete | SMS Alert Daemon |
+
+## Phase 5 Plans
+
+| Plan | Wave | Status | Description |
+|------|------|--------|-------------|
+| 05-01 | 1 | Complete | Create parent container views with v-tabs |
+| 05-02 | 2 | Pending | Router restructure (parent/child hierarchy) |
+| 05-03 | 3 | Pending | Child view cleanup (remove wrappers) |
