@@ -15,8 +15,7 @@
           size="small"
           @click="rail = !rail"
         ></v-btn>
-        <v-img v-if="!rail && hasLogo" :src="logoUrl" height="40" max-width="120" contain class="mx-2" />
-        <v-icon v-else-if="!rail" class="mx-2">mdi-access-point-network</v-icon>
+        <v-icon v-if="!rail" class="mx-2">mdi-access-point-network</v-icon>
         <span v-if="!rail" class="text-subtitle-1 font-weight-bold flex-grow-1">{{ kitName }}</span>
         <v-btn
           v-if="!rail"

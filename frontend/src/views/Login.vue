@@ -3,24 +3,24 @@
     <v-row align="center" justify="center">
       <v-col cols="12" sm="8" md="4">
         <v-card class="elevation-12">
-          <!-- Logo above toolbar if configured -->
-          <div v-if="hasLogo" class="d-flex justify-center pa-4 bg-grey-lighten-4">
-            <v-img :src="logoUrl" max-height="80" max-width="200" contain />
-          </div>
           <v-toolbar color="primary" dark flat>
+            <v-icon class="mr-2">mdi-access-point-network</v-icon>
             <v-toolbar-title v-if="isLoaded">{{ kitName }}</v-toolbar-title>
             <v-progress-circular v-else indeterminate size="20" />
           </v-toolbar>
-          <v-card-text>
+          <v-card-text class="pa-6">
             <v-form @submit.prevent="handleLogin">
               <v-text-field
                 v-model="username"
                 label="Username"
                 prepend-icon="mdi-account"
                 type="text"
+                density="default"
+                variant="underlined"
                 :error-messages="error"
                 :disabled="loading"
                 required
+                class="mb-4"
               ></v-text-field>
 
               <v-text-field
@@ -30,6 +30,8 @@
                 :type="showPassword ? 'text' : 'password'"
                 :append-inner-icon="showPassword ? 'mdi-eye' : 'mdi-eye-off'"
                 @click:append-inner="showPassword = !showPassword"
+                density="default"
+                variant="underlined"
                 :disabled="loading"
                 required
               ></v-text-field>
@@ -60,7 +62,7 @@ import { useBranding } from '../composables/useBranding'
 
 const router = useRouter()
 const authStore = useAuthStore()
-const { kitName, logoUrl, hasLogo, loadBranding, isLoaded } = useBranding()
+const { kitName, loadBranding, isLoaded } = useBranding()
 
 const username = ref('')
 const password = ref('')
