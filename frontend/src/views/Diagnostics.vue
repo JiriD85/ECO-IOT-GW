@@ -1,12 +1,5 @@
 <template>
-  <v-container fluid>
-    <v-row>
-      <v-col cols="12">
-        <h1 class="text-h4 mb-4">Diagnostics</h1>
-      </v-col>
-    </v-row>
-
-    <v-tabs v-model="tab" class="mb-4">
+  <v-tabs v-model="tab" class="mb-4">
       <v-tab value="connectivity">Connectivity</v-tab>
       <v-tab value="modbus">Modbus Values</v-tab>
       <v-tab value="logs">Gateway Logs</v-tab>
@@ -175,7 +168,6 @@
         </v-card>
       </v-window-item>
     </v-window>
-  </v-container>
 </template>
 
 <script setup>

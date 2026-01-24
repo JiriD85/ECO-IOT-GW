@@ -1,12 +1,5 @@
 <template>
-  <v-container fluid>
-    <v-row>
-      <v-col cols="12">
-        <h1 class="text-h4 mb-4">System Settings</h1>
-      </v-col>
-    </v-row>
-
-    <v-row>
+  <v-row>
       <!-- System Info -->
       <v-col cols="12" md="6">
         <v-card>
@@ -182,7 +175,6 @@
         </v-card-actions>
       </v-card>
     </v-dialog>
-  </v-container>
 </template>
 
 <script setup>

@@ -1,13 +1,6 @@
 <template>
-  <v-container fluid>
-    <v-row>
-      <v-col cols="12">
-        <h1 class="text-h4 mb-4">Audit Log</h1>
-      </v-col>
-    </v-row>
-
-    <!-- Filters -->
-    <v-row>
+  <!-- Filters -->
+  <v-row>
       <v-col cols="12">
         <v-card>
           <v-card-text>
@@ -137,7 +130,6 @@
         </v-card-actions>
       </v-card>
     </v-dialog>
-  </v-container>
 </template>
 
 <script setup>

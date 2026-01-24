@@ -1,13 +1,6 @@
 <template>
-  <v-container fluid>
-    <v-row>
-      <v-col cols="12">
-        <h1 class="text-h4 mb-4">SMS Alerts</h1>
-      </v-col>
-    </v-row>
-
-    <!-- Error Alert -->
-    <v-row v-if="error">
+  <!-- Error Alert -->
+  <v-row v-if="error">
       <v-col cols="12">
         <v-alert type="error" closable @click:close="error = null">
           {{ error }}
@@ -264,11 +257,10 @@
       </v-card>
     </v-dialog>
 
-    <!-- Snackbar -->
-    <v-snackbar v-model="snackbar.show" :color="snackbar.color" :timeout="3000">
-      {{ snackbar.text }}
-    </v-snackbar>
-  </v-container>
+  <!-- Snackbar -->
+  <v-snackbar v-model="snackbar.show" :color="snackbar.color" :timeout="3000">
+    {{ snackbar.text }}
+  </v-snackbar>
 </template>
 
 <script setup>

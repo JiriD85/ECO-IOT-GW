@@ -1,13 +1,6 @@
 <template>
-  <v-container>
-    <v-row>
-      <v-col cols="12">
-        <h1 class="text-h4 mb-4">Backup & Restore</h1>
-      </v-col>
-    </v-row>
-
-    <!-- Create Backup Card -->
-    <v-row>
+  <!-- Create Backup Card -->
+  <v-row>
       <v-col cols="12" md="6">
         <v-card>
           <v-card-title>Create Backup</v-card-title>
@@ -102,11 +95,10 @@
       </v-card>
     </v-dialog>
 
-    <!-- Snackbar for notifications -->
-    <v-snackbar v-model="snackbar.show" :color="snackbar.color" :timeout="4000">
-      {{ snackbar.text }}
-    </v-snackbar>
-  </v-container>
+  <!-- Snackbar for notifications -->
+  <v-snackbar v-model="snackbar.show" :color="snackbar.color" :timeout="4000">
+    {{ snackbar.text }}
+  </v-snackbar>
 </template>
 
 <script setup>
