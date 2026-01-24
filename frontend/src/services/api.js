@@ -127,3 +127,18 @@ export const auditApi = {
   getLogs: (params = {}) => api.get('/api/audit/logs', { params }),
   getStats: (days = 7) => api.get('/api/audit/stats', { params: { days } })
 }
+
+export const ntpApi = {
+  // Configuration
+  getConfig: () => api.get('/api/ntp/config'),
+  setConfig: (config) => api.put('/api/ntp/config', config),
+
+  // Status
+  getStatus: () => api.get('/api/ntp/status'),
+  getSources: () => api.get('/api/ntp/sources'),
+
+  // Timezone
+  getTimezones: () => api.get('/api/ntp/timezones'),
+  getTimezone: () => api.get('/api/ntp/timezone'),
+  setTimezone: (timezone) => api.put('/api/ntp/timezone', { timezone })
+}
