@@ -31,28 +31,36 @@
   <!-- Branding Assets Section -->
   <v-row>
     <v-col cols="12" md="6">
-      <v-card>
+      <v-card class="h-100">
         <v-card-title>Logo</v-card-title>
         <v-card-text>
-          <!-- Logo preview -->
-          <div v-if="hasLogo || logoPreview" class="mb-4 text-center">
-            <v-img
-              :src="logoPreview || logoUrl"
-              max-height="64"
-              max-width="64"
-              contain
-              class="mb-2 mx-auto"
-            />
-            <v-btn
-              v-if="hasLogo && !logoFile"
-              color="error"
-              size="small"
-              @click="confirmDeleteLogo"
-              :disabled="loading || saving"
-            >
-              <v-icon start>mdi-delete</v-icon>
-              Delete Logo
-            </v-btn>
+          <!-- Logo preview or placeholder -->
+          <div class="mb-4 text-center asset-preview">
+            <template v-if="hasLogo || logoPreview">
+              <v-img
+                :src="logoPreview || logoUrl"
+                height="64"
+                width="64"
+                contain
+                class="mb-2 mx-auto"
+              />
+              <v-btn
+                v-if="hasLogo && !logoFile"
+                color="error"
+                size="small"
+                @click="confirmDeleteLogo"
+                :disabled="loading || saving"
+              >
+                <v-icon start>mdi-delete</v-icon>
+                Delete
+              </v-btn>
+            </template>
+            <template v-else>
+              <div class="placeholder-box mx-auto mb-2">
+                <v-icon size="32" color="grey-lighten-1">mdi-image-off</v-icon>
+              </div>
+              <div class="text-caption text-grey">No logo</div>
+            </template>
           </div>
 
           <!-- Logo upload -->
@@ -63,43 +71,52 @@
             prepend-icon="mdi-image"
             :disabled="loading || saving"
             show-size
+            density="compact"
             @change="onLogoFileChange"
           />
 
-          <v-alert v-if="logoError" type="error" class="mt-2">
+          <v-alert v-if="logoError" type="error" density="compact" class="mt-2">
             {{ logoError }}
           </v-alert>
 
-          <div class="text-caption text-grey mt-2">
-            Accepted formats: PNG, JPG, SVG. Max size: 1MB
+          <div class="text-caption text-grey">
+            PNG, JPG, SVG. Max 1MB
           </div>
         </v-card-text>
       </v-card>
     </v-col>
 
     <v-col cols="12" md="6">
-      <v-card>
+      <v-card class="h-100">
         <v-card-title>Favicon</v-card-title>
         <v-card-text>
-          <!-- Favicon preview -->
-          <div v-if="hasFavicon || faviconPreview" class="mb-4 text-center">
-            <v-img
-              :src="faviconPreview || faviconUrl"
-              max-height="64"
-              max-width="64"
-              contain
-              class="mb-2 mx-auto"
-            />
-            <v-btn
-              v-if="hasFavicon && !faviconFile"
-              color="error"
-              size="small"
-              @click="confirmDeleteFavicon"
-              :disabled="loading || saving"
-            >
-              <v-icon start>mdi-delete</v-icon>
-              Delete Favicon
-            </v-btn>
+          <!-- Favicon preview or placeholder -->
+          <div class="mb-4 text-center asset-preview">
+            <template v-if="hasFavicon || faviconPreview">
+              <v-img
+                :src="faviconPreview || faviconUrl"
+                height="64"
+                width="64"
+                contain
+                class="mb-2 mx-auto"
+              />
+              <v-btn
+                v-if="hasFavicon && !faviconFile"
+                color="error"
+                size="small"
+                @click="confirmDeleteFavicon"
+                :disabled="loading || saving"
+              >
+                <v-icon start>mdi-delete</v-icon>
+                Delete
+              </v-btn>
+            </template>
+            <template v-else>
+              <div class="placeholder-box mx-auto mb-2">
+                <v-icon size="32" color="grey-lighten-1">mdi-web-off</v-icon>
+              </div>
+              <div class="text-caption text-grey">No favicon</div>
+            </template>
           </div>
 
           <!-- Favicon upload -->
@@ -110,15 +127,16 @@
             prepend-icon="mdi-web"
             :disabled="loading || saving"
             show-size
+            density="compact"
             @change="onFaviconFileChange"
           />
 
-          <v-alert v-if="faviconError" type="error" class="mt-2">
+          <v-alert v-if="faviconError" type="error" density="compact" class="mt-2">
             {{ faviconError }}
           </v-alert>
 
-          <div class="text-caption text-grey mt-2">
-            Accepted formats: ICO, PNG. Max size: 100KB
+          <div class="text-caption text-grey">
+            ICO, PNG. Max 100KB
           </div>
         </v-card-text>
       </v-card>
@@ -400,3 +418,24 @@ onMounted(() => {
   loadConfig()
 })
 </script>
+
+<style scoped>
+.placeholder-box {
+  width: 64px;
+  height: 64px;
+  border: 2px dashed #e0e0e0;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #fafafa;
+}
+
+.asset-preview {
+  min-height: 100px;
+}
+
+.h-100 {
+  height: 100%;
+}
+</style>
