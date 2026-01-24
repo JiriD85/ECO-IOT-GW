@@ -72,6 +72,12 @@ const routes = [
     path: '/thingsboard',
     name: 'ThingsBoard',
     component: () => import('../views/ThingsboardConfig.vue')
+  },
+  {
+    path: '/backup',
+    name: 'Backup',
+    component: () => import('../views/Backup.vue'),
+    meta: { requiresAuth: true }
   }
 ]
 
