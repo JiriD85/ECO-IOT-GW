@@ -494,6 +494,113 @@ class RestoreResponse(BaseModel):
 
 
 # =============================================================================
+# Network Failover Models
+# =============================================================================
+
+class NetworkInterface(BaseModel):
+    """Single network interface status."""
+    name: str
+    is_up: bool
+    speed_mbps: Optional[int] = None
+    mtu: int
+    bytes_sent: int
+    bytes_recv: int
+    ipv4_address: Optional[str] = None
+    gateway: Optional[str] = None
+    route_metric: Optional[int] = None
+
+
+class ActiveRoute(BaseModel):
+    """Currently active default route."""
+    interface: str
+    gateway: str
+    metric: int
+
+
+class NetworkStatusResponse(BaseModel):
+    """Overall network status."""
+    interfaces: List[Dict[str, Any]]
+    active_route: Optional[Dict[str, Any]] = None
+    timestamp: str
+
+
+class NetworkInterfaceDetail(BaseModel):
+    """Detailed interface status with additional stats."""
+    name: str
+    is_up: bool
+    speed_mbps: Optional[int] = None
+    mtu: int
+    bytes_sent: int
+    bytes_recv: int
+    errors_in: int
+    errors_out: int
+    drops_in: int
+    drops_out: int
+    addresses: List[Dict[str, Any]] = Field(default_factory=list)
+
+
+class FailoverConfig(BaseModel):
+    """Current failover configuration."""
+    primary_interface: str
+    backup_interface: str
+    primary_metric: int
+    backup_metric: int
+    health_check_enabled: bool
+    health_check_interval: int  # seconds
+    ping_targets: List[str]
+
+
+class FailoverConfigRequest(BaseModel):
+    """Request to configure failover."""
+    primary_interface: str
+    backup_interface: str
+    primary_metric: Optional[int] = 100  # Default from RESEARCH.md
+    backup_metric: Optional[int] = 200   # Default from RESEARCH.md
+
+    @field_validator('primary_interface', 'backup_interface')
+    @classmethod
+    def validate_interface_name(cls, v: str) -> str:
+        """Validate interface name (prevent injection)."""
+        import re
+        if not re.match(r'^[a-zA-Z0-9_-]+$', v):
+            raise ValueError('Invalid interface name')
+        return v
+
+    @field_validator('primary_metric', 'backup_metric')
+    @classmethod
+    def validate_metric(cls, v: Optional[int]) -> Optional[int]:
+        """Validate route metric range."""
+        if v is not None and (v < 0 or v > 1000):
+            raise ValueError('Metric must be between 0 and 1000')
+        return v
+
+
+class ConnectivityTestRequest(BaseModel):
+    """Request to test connectivity."""
+    interface: str
+    target: Optional[str] = "8.8.8.8"  # Default ping target
+
+    @field_validator('interface')
+    @classmethod
+    def validate_interface_name(cls, v: str) -> str:
+        """Validate interface name (prevent injection)."""
+        import re
+        if not re.match(r'^[a-zA-Z0-9_-]+$', v):
+            raise ValueError('Invalid interface name')
+        return v
+
+
+class ConnectivityTestResponse(BaseModel):
+    """Result of connectivity test."""
+    success: bool
+    interface: str
+    target: str
+    latency_ms: Optional[float] = None
+    packet_loss: float
+    timestamp: str
+
+
+# =============================================================================
 # Generic Response Models
 # =============================================================================
 
