@@ -11,11 +11,11 @@ See: .planning/PROJECT.md (updated 2026-01-24)
 ## Current Position
 
 Phase: 2 of 4 (Backup & Restore)
-Plan: 1 of 3
+Plan: 2 of 3
 Status: In progress
-Last activity: 2026-01-24 - Completed 02-01-PLAN.md (BackupService)
+Last activity: 2026-01-24 - Completed 02-02-PLAN.md (Backup API)
 
-Progress: [████████████░░] 25%
+Progress: [████████████████░░] 33%
 
 ## Accumulated Context
 
@@ -35,6 +35,9 @@ Progress: [████████████░░] 25%
 - Manifest version 1.0 as first member for fast validation (02-01)
 - Two-pass extraction: validate all members before extracting any (02-01)
 - WireGuard configs get 600, OpenVPN configs get 644 permissions (02-01)
+- 8KB chunk size for memory-efficient streaming upload (02-02)
+- NamedTemporaryFile with delete=False for manual cleanup control (02-02)
+- require_admin helper function for consistent admin checks (02-02)
 
 ### Patterns Established
 
@@ -49,6 +52,9 @@ Progress: [████████████░░] 25%
 - Deploy: Single SSH session with tar pipe to avoid fail2ban lockout
 - Backup: Security validation before extraction - absolute paths, path traversal, symlinks (02-01)
 - Backup: Audit logging for both create and restore with success/failure tracking (02-01)
+- FileResponse for binary file downloads with Content-Disposition header (02-02)
+- Streaming UploadFile with chunk-based reading for large files (02-02)
+- Temp file cleanup in finally block ensures cleanup on exception (02-02)
 
 ### Pending TODOs
 
@@ -60,10 +66,10 @@ None
 
 ## Session Continuity
 
-Last session: 2026-01-24T11:31:27Z
-Stopped at: Completed 02-01-PLAN.md (BackupService)
+Last session: 2026-01-24T11:48:40Z
+Stopped at: Completed 02-02-PLAN.md (Backup API)
 Resume file: None
-Next: Execute 02-02-PLAN.md (Backup API)
+Next: Execute 02-03-PLAN.md (Frontend Backup View)
 
 ## Phase 1 Plans
 
@@ -78,5 +84,5 @@ Next: Execute 02-02-PLAN.md (Backup API)
 | Plan | Wave | Status | Description |
 |------|------|--------|-------------|
 | 02-01 | 1 | Complete | Backend Backup Service |
-| 02-02 | 2 | Pending | Backend Backup API + Models |
+| 02-02 | 2 | Complete | Backend Backup API + Models |
 | 02-03 | 3 | Pending | Frontend Backup View |
