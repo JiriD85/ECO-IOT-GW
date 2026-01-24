@@ -50,8 +50,10 @@
       </template>
     </v-navigation-drawer>
 
-    <v-main>
-      <router-view />
+    <v-main class="main-content">
+      <div class="main-scroll-container">
+        <router-view />
+      </div>
     </v-main>
 
     <v-snackbar
@@ -110,6 +112,21 @@ const logout = async () => {
 html, body, #app {
   height: 100%;
   overflow: hidden;
+}
+
+.v-application {
+  height: 100%;
+}
+
+.main-content {
+  height: 100%;
+  overflow: hidden;
+}
+
+.main-scroll-container {
+  height: 100%;
+  overflow-y: auto;
+  padding: 16px;
 }
 
 .cursor-pointer {
