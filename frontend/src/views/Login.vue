@@ -7,10 +7,12 @@
           <div v-if="hasLogo" class="d-flex justify-center pa-4" style="background: rgba(255,255,255,0.05);">
             <v-img :src="logoUrl" max-height="60" max-width="180" contain />
           </div>
-          <v-toolbar color="primary" dark flat class="justify-center">
-            <v-icon class="mr-2">mdi-access-point-network</v-icon>
-            <v-toolbar-title v-if="isLoaded">{{ kitName }}</v-toolbar-title>
-            <v-progress-circular v-else indeterminate size="20" />
+          <v-toolbar color="primary" dark flat>
+            <v-toolbar-title class="d-flex align-center justify-center w-100">
+              <v-icon class="mr-2">mdi-access-point-network</v-icon>
+              <span v-if="isLoaded">{{ kitName }}</span>
+              <v-progress-circular v-else indeterminate size="20" />
+            </v-toolbar-title>
           </v-toolbar>
           <v-card-text class="pa-6">
             <v-form @submit.prevent="handleLogin">
