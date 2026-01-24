@@ -28,68 +28,107 @@ const routes = [
     component: () => import('../views/Terminal.vue')
   },
   {
-    path: '/vpn',
-    name: 'VPN',
-    component: () => import('../views/VpnConfig.vue')
+    path: '/interfaces',
+    name: 'Interfaces',
+    component: () => import('../views/Interfaces.vue'),
+    redirect: '/interfaces/modem',
+    children: [
+      {
+        path: 'modem',
+        name: 'Modem',
+        component: () => import('../views/ModemConfig.vue'),
+        meta: { tabLabel: 'Modem', tabIcon: 'mdi-antenna' }
+      },
+      {
+        path: 'serial',
+        name: 'Serial',
+        component: () => import('../views/SerialConfig.vue'),
+        meta: { tabLabel: 'Serial', tabIcon: 'mdi-serial-port' }
+      }
+    ]
   },
   {
-    path: '/diagnostics',
-    name: 'Diagnostics',
-    component: () => import('../views/Diagnostics.vue')
-  },
-  {
-    path: '/modem',
-    name: 'Modem',
-    component: () => import('../views/ModemConfig.vue')
-  },
-  {
-    path: '/serial',
-    name: 'Serial',
-    component: () => import('../views/SerialConfig.vue')
-  },
-  {
-    path: '/wifi',
-    name: 'WiFi',
-    component: () => import('../views/WifiConfig.vue')
+    path: '/network',
+    name: 'Network',
+    component: () => import('../views/Network.vue'),
+    redirect: '/network/failover',
+    children: [
+      {
+        path: 'failover',
+        name: 'Failover',
+        component: () => import('../views/NetworkStatus.vue'),
+        meta: { tabLabel: 'Failover', tabIcon: 'mdi-swap-horizontal', requiresAuth: true }
+      },
+      {
+        path: 'vpn',
+        name: 'VPN',
+        component: () => import('../views/VpnConfig.vue'),
+        meta: { tabLabel: 'VPN', tabIcon: 'mdi-vpn' }
+      },
+      {
+        path: 'wifi',
+        name: 'WiFi',
+        component: () => import('../views/WifiConfig.vue'),
+        meta: { tabLabel: 'WiFi AP', tabIcon: 'mdi-wifi' }
+      }
+    ]
   },
   {
     path: '/system',
     name: 'System',
-    component: () => import('../views/SystemSettings.vue')
+    component: () => import('../views/System.vue'),
+    redirect: '/system/settings',
+    children: [
+      {
+        path: 'settings',
+        name: 'Settings',
+        component: () => import('../views/SystemSettings.vue'),
+        meta: { tabLabel: 'Settings', tabIcon: 'mdi-cog' }
+      },
+      {
+        path: 'ntp',
+        name: 'NtpConfig',
+        component: () => import('../views/NtpConfig.vue'),
+        meta: { tabLabel: 'NTP', tabIcon: 'mdi-clock-outline', requiresAuth: true }
+      },
+      {
+        path: 'backup',
+        name: 'Backup',
+        component: () => import('../views/Backup.vue'),
+        meta: { tabLabel: 'Backup', tabIcon: 'mdi-backup-restore', requiresAuth: true }
+      }
+    ]
   },
   {
-    path: '/ntp',
-    name: 'NtpConfig',
-    component: () => import('../views/NtpConfig.vue'),
-    meta: { requiresAuth: true }
-  },
-  {
-    path: '/audit',
-    name: 'Audit',
-    component: () => import('../views/AuditLog.vue')
+    path: '/monitoring',
+    name: 'Monitoring',
+    component: () => import('../views/Monitoring.vue'),
+    redirect: '/monitoring/diagnostics',
+    children: [
+      {
+        path: 'diagnostics',
+        name: 'Diagnostics',
+        component: () => import('../views/Diagnostics.vue'),
+        meta: { tabLabel: 'Diagnostics', tabIcon: 'mdi-chart-line' }
+      },
+      {
+        path: 'audit',
+        name: 'Audit',
+        component: () => import('../views/AuditLog.vue'),
+        meta: { tabLabel: 'Audit Log', tabIcon: 'mdi-clipboard-text' }
+      },
+      {
+        path: 'sms-alerts',
+        name: 'SmsAlerts',
+        component: () => import('../views/SmsAlerts.vue'),
+        meta: { tabLabel: 'SMS Alerts', tabIcon: 'mdi-message-text', requiresAuth: true }
+      }
+    ]
   },
   {
     path: '/thingsboard',
     name: 'ThingsBoard',
     component: () => import('../views/ThingsboardConfig.vue')
-  },
-  {
-    path: '/backup',
-    name: 'Backup',
-    component: () => import('../views/Backup.vue'),
-    meta: { requiresAuth: true }
-  },
-  {
-    path: '/network',
-    name: 'NetworkStatus',
-    component: () => import('../views/NetworkStatus.vue'),
-    meta: { requiresAuth: true }
-  },
-  {
-    path: '/sms-alerts',
-    name: 'SmsAlerts',
-    component: () => import('../views/SmsAlerts.vue'),
-    meta: { requiresAuth: true }
   }
 ]
 
