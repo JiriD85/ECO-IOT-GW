@@ -1,12 +1,5 @@
 <template>
-  <v-container fluid>
-    <v-row>
-      <v-col cols="12">
-        <h1 class="text-h4 mb-4">RS485 Serial Configuration</h1>
-      </v-col>
-    </v-row>
-
-    <v-row>
+  <v-row>
       <v-col cols="12" md="6">
         <v-card>
           <v-card-title>Serial Port Settings</v-card-title>
@@ -116,7 +109,6 @@
         </v-card>
       </v-col>
     </v-row>
-  </v-container>
 </template>
 
 <script setup>
