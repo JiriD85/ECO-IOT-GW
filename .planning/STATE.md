@@ -11,11 +11,11 @@ See: .planning/PROJECT.md (updated 2026-01-24)
 ## Current Position
 
 Phase: 6 of 8 (Kit Identification & Branding)
-Plan: 3 of 3
-Status: Phase complete
-Last activity: 2026-01-24 — Completed 06-03-PLAN.md (Frontend Branding UI)
+Plan: 4 of 4 (checkpoint pending)
+Status: Awaiting verification checkpoint
+Last activity: 2026-01-24 — Completed 06-04-PLAN.md tasks 1-3 (Branding Integration)
 
-Progress: [██████░░░░] 67% (5.67/8 phases complete - 2/3 plans in phase 6)
+Progress: [██████░░░░] 69% (5.75/8 phases complete - 3/4 tasks in plan 06-04)
 
 ## Accumulated Context
 
@@ -88,6 +88,10 @@ Progress: [██████░░░░] 67% (5.67/8 phases complete - 2/3 pla
 - GET /config and GET /logo, GET /favicon are public (no auth required for login page) (06-02)
 - All modification endpoints (PUT/POST/DELETE) require admin role (06-02)
 - Follow backup.py pattern for file uploads with UploadFile (06-02)
+- Singleton composable pattern for useBranding - module-scope refs shared globally (06-04)
+- Theme toggle updates both localStorage and backend (fire-and-forget) (06-04)
+- Dynamic favicon update via document.querySelector("link[rel*='icon']") (06-04)
+- Loading indicator on Login page prevents flash of default "ECO-IOT-GW" (06-04)
 
 ### Patterns Established
 
@@ -153,10 +157,10 @@ None
 
 ## Session Continuity
 
-Last session: 2026-01-24T14:50:19Z
-Stopped at: Completed 06-03-PLAN.md (Frontend Branding UI)
+Last session: 2026-01-24T14:54:23Z
+Stopped at: Completed 06-04-PLAN.md tasks 1-3, awaiting checkpoint verification
 Resume file: None
-Next: Phase 7
+Next: Complete 06-04 checkpoint, then Phase 6 complete
 
 ### Deployment Notes (Phase 3)
 - Deployed to gateway 192.168.1.69
