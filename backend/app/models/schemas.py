@@ -467,6 +467,33 @@ class TimezoneRequest(BaseModel):
 
 
 # =============================================================================
+# Backup Models
+# =============================================================================
+
+class BackupInfo(BaseModel):
+    """Backup metadata from manifest."""
+    version: str
+    created_at: datetime
+    hostname: str
+    app_version: str
+    paths: List[str]
+
+
+class BackupValidateResponse(BaseModel):
+    """Backup validation response."""
+    valid: bool
+    manifest: Optional[BackupInfo] = None
+    error: Optional[str] = None
+
+
+class RestoreResponse(BaseModel):
+    """Backup restore response."""
+    success: bool
+    message: str
+    restored_paths: Optional[List[str]] = None
+
+
+# =============================================================================
 # Generic Response Models
 # =============================================================================
 
