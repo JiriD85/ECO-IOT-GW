@@ -11,11 +11,11 @@ See: .planning/PROJECT.md (updated 2026-01-24)
 ## Current Position
 
 Phase: 6 of 8 (Kit Identification & Branding)
-Plan: 1 of 3
-Status: In progress
-Last activity: 2026-01-24 — Completed 06-01-PLAN.md (Branding Service)
+Plan: 3 of 3
+Status: Phase complete
+Last activity: 2026-01-24 — Completed 06-03-PLAN.md (Frontend Branding UI)
 
-Progress: [██████░░░░] 65% (5.33/8 phases complete - 1/3 plans in phase 6)
+Progress: [██████░░░░] 67% (5.67/8 phases complete - 2/3 plans in phase 6)
 
 ## Accumulated Context
 
@@ -81,6 +81,9 @@ Progress: [██████░░░░] 65% (5.33/8 phases complete - 1/3 pla
 - Development mode fallback to ~/.eco-iot-gw/ when /etc not available (06-01)
 - WiFi SSID update is optional via update_wifi_ssid flag (06-01)
 - Continue branding update even if WiFi update fails (06-01)
+- GET /config and GET /logo, GET /favicon are public (no auth required for login page) (06-02)
+- All modification endpoints (PUT/POST/DELETE) require admin role (06-02)
+- Follow backup.py pattern for file uploads with UploadFile (06-02)
 
 ### Patterns Established
 
@@ -129,6 +132,9 @@ Progress: [██████░░░░] 65% (5.33/8 phases complete - 1/3 pla
 - Asset storage pattern: binary file + .meta text file for content type (06-01)
 - Service validates file size and content type before accepting uploads (06-01)
 - Config operations return status object with has_logo, has_favicon flags (06-01)
+- Public branding endpoints pattern: Config and assets accessible without auth for login page display (06-02)
+- File upload validation: Check content type before accepting upload (06-02)
+- require_admin helper: Consistent admin authorization check across endpoints (06-02)
 
 ### Pending TODOs
 
@@ -140,10 +146,10 @@ None
 
 ## Session Continuity
 
-Last session: 2026-01-24T15:39:33Z
-Stopped at: Completed 06-01-PLAN.md (Branding Service)
+Last session: 2026-01-24T14:50:19Z
+Stopped at: Completed 06-02-PLAN.md (Branding API)
 Resume file: None
-Next: 06-02-PLAN.md (Branding API)
+Next: 06-03-PLAN.md (Frontend Branding UI)
 
 ### Deployment Notes (Phase 3)
 - Deployed to gateway 192.168.1.69
@@ -210,5 +216,5 @@ Next: 06-02-PLAN.md (Branding API)
 | Plan | Wave | Status | Description |
 |------|------|--------|-------------|
 | 06-01 | 1 | Complete | Backend Branding Service |
-| 06-02 | 2 | Pending | Backend Branding API |
+| 06-02 | 2 | Complete | Backend Branding API |
 | 06-03 | 3 | Pending | Frontend Branding UI |
