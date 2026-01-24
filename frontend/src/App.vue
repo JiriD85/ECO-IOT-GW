@@ -15,8 +15,16 @@
           size="small"
           @click="rail = !rail"
         ></v-btn>
-        <v-icon v-if="!rail" class="mx-2">mdi-access-point-network</v-icon>
-        <span v-if="!rail" class="text-subtitle-1 font-weight-bold flex-grow-1">ECO-IOT-GW</span>
+        <v-img v-if="!rail && hasLogo" :src="logoUrl" height="32" width="32" class="mx-2" />
+        <v-icon v-else-if="!rail" class="mx-2">mdi-access-point-network</v-icon>
+        <span v-if="!rail" class="text-subtitle-1 font-weight-bold flex-grow-1">{{ kitName }}</span>
+        <v-btn
+          v-if="!rail"
+          variant="text"
+          :icon="isDark() ? 'mdi-weather-sunny' : 'mdi-weather-night'"
+          size="small"
+          @click="toggleTheme"
+        ></v-btn>
       </div>
 
       <v-divider></v-divider>
@@ -57,19 +65,25 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from './services/auth'
 import { useSnackbar } from './composables/useSnackbar'
+import { useBranding } from './composables/useBranding'
 
 const router = useRouter()
 const authStore = useAuthStore()
 const snackbar = useSnackbar()
+const { kitName, logoUrl, hasLogo, loadBranding, toggleTheme, isDark } = useBranding()
 
 const drawer = ref(true)
 const rail = ref(false)
 
 const isAuthenticated = computed(() => authStore.isAuthenticated)
+
+onMounted(() => {
+  loadBranding()
+})
 
 const menuItems = [
   { title: 'Dashboard', icon: 'mdi-view-dashboard', path: '/dashboard' },
