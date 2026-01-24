@@ -142,3 +142,28 @@ export const ntpApi = {
   getTimezone: () => api.get('/api/ntp/timezone'),
   setTimezone: (timezone) => api.put('/api/ntp/timezone', { timezone })
 }
+
+export const backupApi = {
+  // Create and download backup
+  create: () => api.post('/api/backup/create', null, {
+    responseType: 'blob'  // Important: receive as blob for file download
+  }),
+
+  // Upload and restore from backup
+  restore: (file) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    return api.post('/api/backup/restore', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+  },
+
+  // Validate backup without restoring
+  validate: (file) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    return api.post('/api/backup/validate', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+  }
+}
