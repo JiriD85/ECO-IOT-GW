@@ -10,12 +10,12 @@ See: .planning/PROJECT.md (updated 2026-01-24)
 
 ## Current Position
 
-Phase: 5 of 8 (Menu Restructuring) ✓ COMPLETE
-Plan: 4/4
-Status: Phase 5 verified and deployed
-Last activity: 2026-01-24 — Phase 5 Menu Restructuring complete
+Phase: 6 of 8 (Kit Identification & Branding)
+Plan: 1 of 3
+Status: In progress
+Last activity: 2026-01-24 — Completed 06-01-PLAN.md (Branding Service)
 
-Progress: [██████░░░░] 62.5% (5/8 phases complete)
+Progress: [██████░░░░] 65% (5.33/8 phases complete - 1/3 plans in phase 6)
 
 ## Accumulated Context
 
@@ -77,6 +77,10 @@ Progress: [██████░░░░] 62.5% (5/8 phases complete)
 - Menu consolidation from 15 to 8 items: 4 standalone + 4 parent routes (05-04)
 - Menu items point to parent routes, router redirects handle default tab selection (05-04)
 - Semantic menu icons: mdi-ethernet (Interfaces), mdi-network (Network), mdi-cog-outline (System), mdi-monitor-dashboard (Monitoring) (05-04)
+- Store branding assets without file extensions, use .meta files for content type (06-01)
+- Development mode fallback to ~/.eco-iot-gw/ when /etc not available (06-01)
+- WiFi SSID update is optional via update_wifi_ssid flag (06-01)
+- Continue branding update even if WiFi update fails (06-01)
 
 ### Patterns Established
 
@@ -122,6 +126,9 @@ Progress: [██████░░░░] 62.5% (5/8 phases complete)
 - Tab metadata: tabLabel and tabIcon in child route meta for UI rendering (05-02)
 - Child component adaptation: remove v-container wrapper and h1 title for tab embedding (05-03)
 - Direct content start pattern: templates begin with v-row when embedded in parent tabs (05-03)
+- Asset storage pattern: binary file + .meta text file for content type (06-01)
+- Service validates file size and content type before accepting uploads (06-01)
+- Config operations return status object with has_logo, has_favicon flags (06-01)
 
 ### Pending TODOs
 
@@ -133,10 +140,10 @@ None
 
 ## Session Continuity
 
-Last session: 2026-01-24T15:35:00Z
-Stopped at: Phase 5 complete
+Last session: 2026-01-24T15:39:33Z
+Stopped at: Completed 06-01-PLAN.md (Branding Service)
 Resume file: None
-Next: Phase 6 (Kit Identification & Branding)
+Next: 06-02-PLAN.md (Branding API)
 
 ### Deployment Notes (Phase 3)
 - Deployed to gateway 192.168.1.69
@@ -197,3 +204,11 @@ Next: Phase 6 (Kit Identification & Branding)
 | 05-02 | 2 | Complete | Router restructure (parent/child hierarchy) |
 | 05-03 | 3 | Complete | Child view cleanup (remove wrappers) |
 | 05-04 | 3 | Complete | App.vue menu update (verified) |
+
+## Phase 6 Plans
+
+| Plan | Wave | Status | Description |
+|------|------|--------|-------------|
+| 06-01 | 1 | Complete | Backend Branding Service |
+| 06-02 | 2 | Pending | Backend Branding API |
+| 06-03 | 3 | Pending | Frontend Branding UI |
