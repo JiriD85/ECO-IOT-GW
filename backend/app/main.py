@@ -11,7 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from .config import settings
-from .api import auth, docker, terminal, vpn, modem, serial, wifi, system, diagnostics, watchdog, audit, thingsboard, ntp, backup, network, sms
+from .api import auth, docker, terminal, vpn, modem, serial, wifi, system, diagnostics, watchdog, audit, thingsboard, ntp, backup, network, sms, branding
 
 # Configure logging
 logging.basicConfig(
@@ -156,6 +156,7 @@ app.include_router(ntp.router, prefix="/api/ntp", tags=["NTP"])
 app.include_router(backup.router, prefix="/api/backup", tags=["Backup"])
 app.include_router(network.router, tags=["Network"])
 app.include_router(sms.router, prefix="/api/sms", tags=["SMS Alerts"])
+app.include_router(branding.router, prefix="/api/branding", tags=["Branding"])
 
 
 # Health check endpoint
