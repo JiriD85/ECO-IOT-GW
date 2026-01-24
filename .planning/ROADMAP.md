@@ -63,12 +63,13 @@ Plans:
 3. User can configure failover priority
 4. User can view current connection status
 
-**Plans:** 3 plans
+**Plans:** 4 plans
 
 Plans:
 - [ ] 03-01-PLAN.md - Backend Network Service (NetworkManager integration, interface monitoring)
 - [ ] 03-02-PLAN.md - Backend Network API + Models (endpoints, schemas)
 - [ ] 03-03-PLAN.md - Frontend Network Status View (Vue component, UI)
+- [ ] 03-04-PLAN.md - Failover Monitoring Daemon (automated health checks, systemd service)
 
 ---
 
