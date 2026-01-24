@@ -38,9 +38,10 @@
           <div v-if="hasLogo || logoPreview" class="mb-4 text-center">
             <v-img
               :src="logoPreview || logoUrl"
-              max-height="200"
+              max-height="64"
+              max-width="64"
               contain
-              class="mb-2"
+              class="mb-2 mx-auto"
             />
             <v-btn
               v-if="hasLogo && !logoFile"
