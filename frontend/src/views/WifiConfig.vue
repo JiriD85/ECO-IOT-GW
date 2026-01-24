@@ -1,12 +1,5 @@
 <template>
-  <v-container fluid>
-    <v-row>
-      <v-col cols="12">
-        <h1 class="text-h4 mb-4">WiFi Access Point</h1>
-      </v-col>
-    </v-row>
-
-    <v-row>
+  <v-row>
       <!-- Status Card -->
       <v-col cols="12" md="6">
         <v-card>
@@ -159,7 +152,6 @@
         </v-card>
       </v-col>
     </v-row>
-  </v-container>
 </template>
 
 <script setup>
