@@ -10,12 +10,12 @@ See: .planning/PROJECT.md (updated 2026-01-24)
 
 ## Current Position
 
-Phase: 4 of 4 (SMS Alerts) - IN PROGRESS
+Phase: 4 of 4 (SMS Alerts) - DEPLOYED
 Plan: 4 of 4
-Status: All plans complete, pending human verification
-Last activity: 2026-01-24 - Phase 4 plans executed
+Status: Phase complete and deployed to gateway
+Last activity: 2026-01-24 - Phase 4 deployed to gateway
 
-Progress: [██████████████████████████████] 95%
+Progress: [████████████████████████████████] 100%
 
 ## Accumulated Context
 
@@ -59,6 +59,15 @@ Progress: [███████████████████████
 - Admin-only save button with visual indicator for role-based access (03-03)
 - Metric validation prevents misconfiguration (primary < backup) (03-03)
 - Active interface highlighted with border and chip (03-03)
+- phonenumbers library for E.164 validation (04-01)
+- threading.Lock for thread-safe serial access to modem (04-01)
+- GSM charset (AT+CSCS="GSM") for SMS compatibility (04-01)
+- 160 char truncation for GSM-7 safe messages (04-01)
+- 30s timeout for SMS delivery confirmation (04-01)
+- Cooldown tracking in memory (resets on service restart) (04-01)
+- SMS test accessible to all authenticated users (04-02)
+- State machine for alerts: only OK→FAILED triggers SMS (04-04)
+- 60s check interval for SMS daemon (less aggressive than failover) (04-04)
 
 ### Patterns Established
 
@@ -92,6 +101,11 @@ Progress: [███████████████████████
 - networkApi pattern: API grouping for network-related endpoints in api.js (03-03)
 - Admin-only UI controls: Role-based button disabling with visual feedback (03-03)
 - Multi-section card layout: Status display, configuration, testing sections (03-03)
+- Phone validation: validate_phone_number() returns E.164 format (04-01)
+- Encrypted config storage: encrypt phone numbers in sms_config.json (04-01)
+- smsApi pattern: API grouping for SMS-related endpoints in api.js (04-03)
+- Trigger state tracking: transition detection (OK→FAILED only alerts) (04-04)
+- SMS daemon: asyncio monitoring loop with 60s interval (04-04)
 
 ### Pending TODOs
 
@@ -106,7 +120,7 @@ None
 Last session: 2026-01-24T13:45:00Z
 Stopped at: Phase 3 deployed and verified on gateway
 Resume file: None
-Next: Human verification of SMS Alerts UI (Task 04-03-T4), then deploy to gateway
+Next: All phases complete! Project milestone 1 finished.
 
 ### Deployment Notes (Phase 3)
 - Deployed to gateway 192.168.1.69
@@ -116,6 +130,14 @@ Next: Human verification of SMS Alerts UI (Task 04-03-T4), then deploy to gatewa
 - Connectivity Test verified working (wlan0 → 8.8.8.8, 0% packet loss)
 - Frontend fix: changed operational_status to is_up for API compatibility
 - Log file permission fix: /var/log/eco-iot-gw/failover.log
+
+### Deployment Notes (Phase 4)
+- Deployed to gateway 192.168.1.69 on 2026-01-24
+- Backend service restarted with SMS API endpoints
+- SMS alert daemon running (eco-iot-gw-sms-alerts)
+- phonenumbers library installed for E.164 validation
+- Log file created: /var/log/eco-iot-gw/sms-alerts.log
+- SMS Alerts UI accessible at /sms-alerts
 
 ## Phase 1 Plans
 
@@ -141,3 +163,12 @@ Next: Human verification of SMS Alerts UI (Task 04-03-T4), then deploy to gatewa
 | 03-02 | 2 | Complete | Backend Network API + Models |
 | 03-03 | 3 | Complete | Frontend Network Failover View |
 | 03-04 | 2 | Complete | Failover Daemon |
+
+## Phase 4 Plans
+
+| Plan | Wave | Status | Description |
+|------|------|--------|-------------|
+| 04-01 | 1 | Complete | Backend SMS Foundation (models, service, modem SMS) |
+| 04-02 | 2 | Complete | Backend SMS API (endpoints) |
+| 04-03 | 3 | Complete | Frontend SMS Alerts View |
+| 04-04 | 3 | Complete | SMS Alert Daemon |
