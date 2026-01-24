@@ -96,6 +96,12 @@ const routes = [
         name: 'Backup',
         component: () => import('../views/Backup.vue'),
         meta: { tabLabel: 'Backup', tabIcon: 'mdi-backup-restore', requiresAuth: true }
+      },
+      {
+        path: 'admin',
+        name: 'Admin',
+        component: () => import('../views/AdminConfig.vue'),
+        meta: { tabLabel: 'Admin', tabIcon: 'mdi-shield-account', requiresAuth: true }
       }
     ]
   },
