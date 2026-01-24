@@ -4,7 +4,9 @@
       <v-col cols="12" sm="8" md="4">
         <v-card class="elevation-12">
           <v-toolbar color="primary" dark flat>
-            <v-toolbar-title>ECO-IOT-GW</v-toolbar-title>
+            <v-img v-if="hasLogo" :src="logoUrl" height="32" width="32" class="ml-2 mr-2" />
+            <v-toolbar-title v-if="isLoaded">{{ kitName }}</v-toolbar-title>
+            <v-progress-circular v-else indeterminate size="20" />
           </v-toolbar>
           <v-card-text>
             <v-form @submit.prevent="handleLogin">
@@ -48,18 +50,24 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../services/auth'
+import { useBranding } from '../composables/useBranding'
 
 const router = useRouter()
 const authStore = useAuthStore()
+const { kitName, logoUrl, hasLogo, loadBranding, isLoaded } = useBranding()
 
 const username = ref('')
 const password = ref('')
 const showPassword = ref(false)
 const loading = ref(false)
 const error = ref('')
+
+onMounted(() => {
+  loadBranding()
+})
 
 const handleLogin = async () => {
   if (!username.value || !password.value) {
