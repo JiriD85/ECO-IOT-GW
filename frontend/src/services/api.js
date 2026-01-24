@@ -212,6 +212,13 @@ export const networkApi = {
     }),
 }
 
+// Auth API
+export const authApi = {
+  changePassword: (currentPassword, newPassword) => api.post('/api/auth/change-password', null, {
+    params: { current_password: currentPassword, new_password: newPassword }
+  })
+}
+
 // Branding API
 export const brandingApi = {
   getConfig: () => api.get('/api/branding/config'),

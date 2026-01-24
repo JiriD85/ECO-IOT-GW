@@ -162,6 +162,60 @@
     </v-col>
   </v-row>
 
+  <!-- Password Change Section -->
+  <v-row class="mt-4">
+    <v-col cols="12" md="6">
+      <v-card>
+        <v-card-title>
+          <v-icon start>mdi-lock-reset</v-icon>
+          Change Password
+        </v-card-title>
+        <v-card-text>
+          <v-form ref="passwordForm" @submit.prevent="changePassword">
+            <v-text-field
+              v-model="passwordData.current"
+              label="Current Password"
+              :type="showCurrentPassword ? 'text' : 'password'"
+              :append-inner-icon="showCurrentPassword ? 'mdi-eye' : 'mdi-eye-off'"
+              @click:append-inner="showCurrentPassword = !showCurrentPassword"
+              :disabled="changingPassword"
+              :rules="[v => !!v || 'Required']"
+              class="mb-2"
+            />
+            <v-text-field
+              v-model="passwordData.new"
+              label="New Password"
+              :type="showNewPassword ? 'text' : 'password'"
+              :append-inner-icon="showNewPassword ? 'mdi-eye' : 'mdi-eye-off'"
+              @click:append-inner="showNewPassword = !showNewPassword"
+              :disabled="changingPassword"
+              :rules="passwordRules"
+              class="mb-2"
+            />
+            <v-text-field
+              v-model="passwordData.confirm"
+              label="Confirm New Password"
+              :type="showNewPassword ? 'text' : 'password'"
+              :disabled="changingPassword"
+              :rules="[v => v === passwordData.new || 'Passwords do not match']"
+            />
+          </v-form>
+        </v-card-text>
+        <v-card-actions>
+          <v-btn
+            color="primary"
+            :loading="changingPassword"
+            :disabled="!canChangePassword"
+            @click="changePassword"
+          >
+            <v-icon start>mdi-lock-check</v-icon>
+            Change Password
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-col>
+  </v-row>
+
   <!-- Delete Confirmation Dialog -->
   <v-dialog v-model="deleteDialog.show" max-width="400">
     <v-card>
@@ -185,7 +239,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { brandingApi } from '@/services/api'
+import { brandingApi, authApi } from '@/services/api'
 import { useAuthStore } from '@/services/auth'
 
 const authStore = useAuthStore()
@@ -194,6 +248,29 @@ const isAdmin = computed(() => authStore.user?.role === 'admin')
 // State
 const loading = ref(false)
 const saving = ref(false)
+const changingPassword = ref(false)
+
+// Password change state
+const passwordForm = ref(null)
+const passwordData = ref({
+  current: '',
+  new: '',
+  confirm: ''
+})
+const showCurrentPassword = ref(false)
+const showNewPassword = ref(false)
+
+const passwordRules = [
+  v => !!v || 'Required',
+  v => v.length >= 8 || 'Minimum 8 characters'
+]
+
+const canChangePassword = computed(() => {
+  return passwordData.value.current &&
+         passwordData.value.new &&
+         passwordData.value.new.length >= 8 &&
+         passwordData.value.new === passwordData.value.confirm
+})
 const kitName = ref('ECO-IOT-GW')
 const updateWifiSsid = ref(false)
 const originalKitName = ref('ECO-IOT-GW')
@@ -410,6 +487,23 @@ const executeDelete = async () => {
     showSnackbar(error.response?.data?.detail || `Failed to delete ${type}`, 'error')
   } finally {
     saving.value = false
+  }
+}
+
+const changePassword = async () => {
+  if (!canChangePassword.value) return
+
+  changingPassword.value = true
+  try {
+    await authApi.changePassword(passwordData.value.current, passwordData.value.new)
+    showSnackbar('Password changed successfully')
+    // Clear form
+    passwordData.value = { current: '', new: '', confirm: '' }
+  } catch (error) {
+    console.error('Failed to change password:', error)
+    showSnackbar(error.response?.data?.detail || 'Failed to change password', 'error')
+  } finally {
+    changingPassword.value = false
   }
 }
 
