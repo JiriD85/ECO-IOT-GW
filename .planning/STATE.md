@@ -11,11 +11,11 @@ See: .planning/PROJECT.md (updated 2026-01-24)
 ## Current Position
 
 Phase: 1 of 4 (NTP Configuration)
-Plan: 1 of 3
+Plan: 2 of 3
 Status: In progress
-Last activity: 2026-01-24 - Completed 01-01-PLAN.md
+Last activity: 2026-01-24 - Completed 01-02-PLAN.md
 
-Progress: [███░░░░░░░] 33%
+Progress: [██████░░░░] 67%
 
 ## Accumulated Context
 
@@ -28,6 +28,9 @@ Progress: [███░░░░░░░] 33%
 - _run_command wrapper for subprocess with sudo support (01-01)
 - Cached timezone list for performance (01-01)
 - Auto-include IoT-critical chrony settings: makestep 1 3, iburst, maxpoll 10 (01-01)
+- PUT /timezone accessible to all authenticated users (not admin-only) for user preference (01-02)
+- Added POST /restart endpoint for explicit chrony service restart (01-02)
+- TimezoneRequest model for body-based timezone updates (01-02)
 
 ### Patterns Established
 
@@ -35,6 +38,8 @@ Progress: [███░░░░░░░] 33%
 - Frontend: Vue component in views/, API in services/api.js
 - Audit: All config changes logged via audit_service
 - NTP: _run_command wrapper for subprocess with timeout and sudo support (01-01)
+- NTP API routes at /api/ntp/* following existing router patterns (01-02)
+- Config changes require admin role, status/read operations require any authenticated user (01-02)
 
 ### Pending TODOs
 
@@ -46,8 +51,8 @@ None
 
 ## Session Continuity
 
-Last session: 2026-01-24T10:45:28Z
-Stopped at: Completed 01-01-PLAN.md
+Last session: 2026-01-24T10:48:50Z
+Stopped at: Completed 01-02-PLAN.md
 Resume file: None
 
 ## Phase 1 Plans
@@ -55,5 +60,5 @@ Resume file: None
 | Plan | Wave | Status | Description |
 |------|------|--------|-------------|
 | 01-01 | 1 | Complete | Backend NTP Service |
-| 01-02 | 2 | Ready | Backend NTP API + Models |
+| 01-02 | 2 | Complete | Backend NTP API + Models |
 | 01-03 | 3 | Ready | Frontend NTP View |
