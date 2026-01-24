@@ -3,7 +3,11 @@
     <v-row align="center" justify="center">
       <v-col cols="12" sm="8" md="4">
         <v-card class="elevation-12">
-          <v-toolbar color="primary" dark flat>
+          <!-- Logo above toolbar if configured -->
+          <div v-if="hasLogo" class="d-flex justify-center pa-4" style="background: rgba(255,255,255,0.05);">
+            <v-img :src="logoUrl" max-height="60" max-width="180" contain />
+          </div>
+          <v-toolbar color="primary" dark flat class="justify-center">
             <v-icon class="mr-2">mdi-access-point-network</v-icon>
             <v-toolbar-title v-if="isLoaded">{{ kitName }}</v-toolbar-title>
             <v-progress-circular v-else indeterminate size="20" />
@@ -62,7 +66,7 @@ import { useBranding } from '../composables/useBranding'
 
 const router = useRouter()
 const authStore = useAuthStore()
-const { kitName, loadBranding, isLoaded } = useBranding()
+const { kitName, logoUrl, hasLogo, loadBranding, isLoaded } = useBranding()
 
 const username = ref('')
 const password = ref('')
