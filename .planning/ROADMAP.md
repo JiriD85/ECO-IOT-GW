@@ -66,10 +66,10 @@ Plans:
 **Plans:** 4 plans
 
 Plans:
-- [ ] 03-01-PLAN.md - Backend Network Service (NetworkManager integration, interface monitoring)
-- [ ] 03-02-PLAN.md - Backend Network API + Models (endpoints, schemas)
-- [ ] 03-03-PLAN.md - Frontend Network Status View (Vue component, UI)
-- [ ] 03-04-PLAN.md - Failover Monitoring Daemon (automated health checks, systemd service)
+- [x] 03-01-PLAN.md - Backend Network Service (NetworkManager integration, interface monitoring) ✓
+- [x] 03-02-PLAN.md - Backend Network API + Models (endpoints, schemas) ✓
+- [x] 03-03-PLAN.md - Frontend Network Status View (Vue component, UI) ✓
+- [x] 03-04-PLAN.md - Failover Monitoring Daemon (automated health checks, systemd service) ✓
 
 ---
 
@@ -85,7 +85,13 @@ Plans:
 2. System sends SMS on configured triggers
 3. User can test SMS functionality
 
-**Plans:** (created by /gsd:plan-phase)
+**Plans:** 4 plans
+
+Plans:
+- [ ] 04-01-PLAN.md - Backend SMS Foundation (models, sms_service, modem SMS methods)
+- [ ] 04-02-PLAN.md - Backend SMS API (endpoints for config and testing)
+- [ ] 04-03-PLAN.md - Frontend SMS Alerts View (Vue component, UI)
+- [ ] 04-04-PLAN.md - SMS Alert Daemon (automated trigger monitoring, systemd service)
 
 ---
 
@@ -102,8 +108,8 @@ Plans:
 - [x] **BACKUP-03**: User can restore from backup file ✓
 
 ### Network Failover
-- [ ] **FAILOVER-01**: System auto-switches between LTE and Ethernet
-- [ ] **FAILOVER-02**: User can configure failover priority and thresholds
+- [x] **FAILOVER-01**: System auto-switches between LTE and Ethernet ✓
+- [x] **FAILOVER-02**: User can configure failover priority and thresholds ✓
 
 ### SMS Alerts
 - [ ] **SMS-01**: User can configure SMS alert recipients

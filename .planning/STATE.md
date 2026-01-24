@@ -106,7 +106,7 @@ None
 Last session: 2026-01-24T13:45:00Z
 Stopped at: Phase 3 deployed and verified on gateway
 Resume file: None
-Next: Phase 4 (SMS Alerts) - run /gsd:plan-phase 4
+Next: Phase 4 (SMS Alerts) - execute plans 04-01 through 04-04
 
 ### Deployment Notes (Phase 3)
 - Deployed to gateway 192.168.1.69
