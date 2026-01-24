@@ -84,6 +84,7 @@ const menuItems = [
   { title: 'System', icon: 'mdi-cog', path: '/system' },
   { title: 'NTP', icon: 'mdi-clock-outline', path: '/ntp' },
   { title: 'Backup', icon: 'mdi-backup-restore', path: '/backup' },
+  { title: 'Network', icon: 'mdi-swap-horizontal', path: '/network' },
   { title: 'Audit Log', icon: 'mdi-clipboard-text', path: '/audit' }
 ]
 
