@@ -16,7 +16,11 @@ not derivable from this codebase and that silently corrupt data if guessed:
   ThingsBoard REST host.
 - The P-Flow D116 is **mixed-endian** — each meter needs two slave entries.
 - Its totals are **mantissa + exponent**, so a constant divider is only conditionally right.
-- The temperature sensors are **PT1000 analog, not Modbus devices**.
+- The temperature sensors are **PT1000 RTDs on the C4's onboard AIOX**, reached at unitId 1
+  over a **second, internal** serial port — not on the meter bus. PT1000 channels 1-16 are
+  registers 41064-41079, one signed 16-bit register each, °C x 100.
+- The LTE modem is **Cinterion**, not Quectel, so `modem_service.py`'s AT commands need
+  checking against this hardware.
 - Child device names must match `ECO_<HWID>_PF1..PF4` / `_TS1..TS2` / `_gw` exactly, with
   the HWID **inherited** from the RESI unit being replaced.
 

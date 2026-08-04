@@ -20,21 +20,31 @@ function buildModbusConnector(site) {
 
   const slaves = [];
 
+  // P-Flow meters live on the external RS485 bus.
   for (const meter of site.pflows || []) {
     requireFields(meter, ['suffix', 'unitId'], `pflows[${meter.suffix || '?'}]`);
-    slaves.push(...expand(site, meter, PFLOW_D116));
+    slaves.push(...expand(site, meter, PFLOW_D116.registerGroups, PFLOW_D116.deviceType, site.serial));
   }
 
+  // Temperature sensors are AIOX channels on the C4's INTERNAL link -- a different port,
+  // and always unitId 1 (the AIOX module itself), not a per-sensor unit id.
   for (const sensor of site.tempSensors || []) {
-    requireFields(sensor, ['suffix', 'unitId'], `tempSensors[${sensor.suffix || '?'}]`);
-    if (TEMP_SENSOR.registerGroups.length === 0) {
+    requireFields(sensor, ['suffix', 'channel'], `tempSensors[${sensor.suffix || '?'}]`);
+    if (!site.internalSerial) {
       throw new Error(
-        `Cannot generate config for ${sensor.suffix}: the temperature sensor register ` +
-        `map is still unknown (see device-maps.js). Determine it with scan-modbus.py ` +
-        `against real hardware, fill in TEMP_SENSOR.registerGroups, then re-run.`
+        `Cannot generate config for ${sensor.suffix}: temperature sensors are AIOX channels ` +
+        `on the C4's internal serial link, which is a different port from the P-Flow bus. ` +
+        `Add "internalSerial" to the site file. See device-maps.js.`
       );
     }
-    slaves.push(...expand(site, sensor, TEMP_SENSOR));
+    const groups = TEMP_SENSOR.registerGroupsFor(sensor.channel, sensor.kind || 'PT1000');
+    slaves.push(...expand(
+      site,
+      { ...sensor, unitId: sensor.unitId ?? TEMP_SENSOR.unitId },
+      groups,
+      TEMP_SENSOR.deviceType,
+      site.internalSerial
+    ));
   }
 
   if (slaves.length === 0) {
@@ -57,11 +67,10 @@ function buildModbusConnector(site) {
 }
 
 /** Expand one physical device into its per-endianness slave entries. */
-function expand(site, device, map) {
-  const serial = site.serial;
-  requireFields(serial, ['port', 'baudrate'], 'serial');
+function expand(site, device, registerGroups, deviceType, serial) {
+  requireFields(serial, ['port', 'baudrate'], 'serial config');
 
-  return map.registerGroups.map((group) => ({
+  return registerGroups.map((group) => ({
     type: 'serial',
     method: 'rtu',
     port: serial.port,
@@ -80,7 +89,7 @@ function expand(site, device, map) {
     unitId: device.unitId,
     // Must match the fleet convention exactly or existing dashboards will not bind.
     deviceName: `ECO_${site.hwid}_${device.suffix}`,
-    deviceType: map.deviceType,
+    deviceType,
     sendDataOnlyOnChange: false,
     connectAttemptTimeMs: 5000,
     connectAttemptCount: 5,

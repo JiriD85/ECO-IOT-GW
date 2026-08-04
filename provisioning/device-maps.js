@@ -99,28 +99,93 @@ const PFLOW_D116 = {
 };
 
 /**
- * Temperature sensor.
+ * Temperature sensors -- the RESI C4's onboard AIOX analog inputs.
  *
- * NOT A MODBUS DEVICE -- this map will stay empty, and that is the correct answer.
+ * These are PT1000 resistance thermometers wired into the C4 carrier board, NOT meters on
+ * the external RS485 bus. That is why no P-Flow-style register map for them exists in any
+ * gateway config. They are still reachable over Modbus, though: the C4's analog IO
+ * expander is itself a Modbus slave at unitId 1 on the board's INTERNAL serial link.
  *
- * The original SD card's firmware exposes the temperature sensors only as
- * PT1000_CELSIUS / PT1000_FARENHEIT / PT1000_KELVIN. They are PT1000 resistance
- * thermometers wired into the RESI C4's onboard analog inputs, read through the C4's own
- * IO block -- not meters on the RS485 bus. That is why no Modbus register map for them
- * exists anywhere: there never was one.
+ * Recovered from the register list documented inside the C4's own Node-RED flow
+ * ("C4 Update AIOX PT100, PT1000, NI1000-DIN43760 Sensors") on the original SD card.
+ * Hardware there was a C4-A-32DI24RO16AIOX: 16 AIOX channels.
  *
- * A Raspberry Pi has no equivalent analog input, so reproducing the fleet's
- * ECO_<HWID>_TS1 / _TS2 devices needs a hardware decision, not a config change:
- *   - an RTD interface board (e.g. MAX31865 over SPI), read by a small local service; or
- *   - a Modbus RTU RTD transmitter on the existing RS485 bus, which is the cheaper fit
- *     for this architecture since the connector then handles it like any other slave.
+ * Every RTD channel is ONE signed 16-bit holding register carrying degrees Celsius x 100,
+ * so `16int` with `divider: 100`. All three sensor families are exposed simultaneously for
+ * all 16 channels -- the AIOX computes each interpretation and you read the block that
+ * matches the physical sensor:
  *
- * Once that is decided, fill in `registerGroups` (Modbus route) or bypass this module
- * entirely (SPI route). Until then the generator refuses to emit a guessed config.
+ *   PT100            inputs 1..16 -> registers 41048..41063
+ *   PT1000           inputs 1..16 -> registers 41064..41079
+ *   NI1000-DIN43760  inputs 1..16 -> registers 41080..41095
+ *
+ * Addresses are literal 0-based register indices in the C4's 65536-register map (the flow
+ * writes them as "4x41065, I:41064"; the I: form is what Modbus actually addresses, and
+ * what tb-gateway's `address` field expects).
+ *
+ * TWO THINGS TO VERIFY ON HARDWARE:
+ *
+ *  1. WHICH CHANNELS. Which AIOX channels the site's two sensors occupy was never
+ *     recorded. Channels 1 and 2 are the obvious guess and are only that -- read the
+ *     whole block (41064, count 16) once and see which channels return plausible
+ *     temperatures instead of an open-circuit reading.
+ *  2. CHANNEL MODE. Each channel's measurement mode lives in a separate TYPE register
+ *     block at 40000..40015, and the C4's flow both reads and writes it. If that setting
+ *     lives in the OS rather than in the AIOX module's own non-volatile memory, replacing
+ *     the software resets it and the RTD registers go dead. Check the TYPE block before
+ *     concluding a sensor is broken.
+ *
+ * ALSO: this is a DIFFERENT serial port from the P-Flow meters -- the AIOX sits on the
+ * board's internal link, the meters on the external RS485. Set `internalSerial` in the
+ * site file. On the original card that internal port was /dev/ttyACM1, but the Cinterion
+ * LTE modem also enumerates as ttyACM*, so the numbering is not stable across a rebuild.
+ * Pin it with a udev rule by USB path before trusting it.
  */
-const TEMP_SENSOR = {
-  deviceType: 'Temperature Sensor',
-  registerGroups: [],
+const AIOX_UNIT_ID = 1;
+const AIOX_CHANNELS = 16;
+const AIOX_RTD_BASE = {
+  PT100: 41048,
+  PT1000: 41064,
+  NI1000_DIN43760: 41080,
 };
 
-module.exports = { PFLOW_D116, TEMP_SENSOR, KJ_TO_KWH };
+const TEMP_SENSOR = {
+  deviceType: 'Temperature Sensor',
+  unitId: AIOX_UNIT_ID,
+  channels: AIOX_CHANNELS,
+  kinds: Object.keys(AIOX_RTD_BASE),
+
+  /**
+   * Register group for one RTD channel.
+   * @param {number} channel 1-based AIOX channel
+   * @param {string} kind PT100 | PT1000 | NI1000_DIN43760
+   */
+  registerGroupsFor(channel, kind = 'PT1000') {
+    const base = AIOX_RTD_BASE[kind];
+    if (base === undefined) {
+      throw new Error(`Unknown RTD type "${kind}". Expected one of: ${Object.keys(AIOX_RTD_BASE).join(', ')}`);
+    }
+    if (!Number.isInteger(channel) || channel < 1 || channel > AIOX_CHANNELS) {
+      throw new Error(`AIOX channel must be an integer 1..${AIOX_CHANNELS}, got ${channel}`);
+    }
+    return [
+      {
+        // Single 16-bit register, so word order is irrelevant here.
+        byteOrder: 'BIG',
+        wordOrder: 'BIG',
+        timeseries: [
+          {
+            tag: 'temperature',
+            type: '16int',
+            functionCode: 3,
+            objectsCount: 1,
+            address: base + (channel - 1),
+            divider: 100,
+          },
+        ],
+      },
+    ];
+  },
+};
+
+module.exports = { PFLOW_D116, TEMP_SENSOR, KJ_TO_KWH, AIOX_RTD_BASE, AIOX_UNIT_ID };

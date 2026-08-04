@@ -118,6 +118,50 @@ def dump(client, unit):
     )
 
 
+# --- C4 AIOX analog IO expander (internal bus, unit 1) ------------------------------
+# Each RTD channel is one signed 16-bit holding register in degrees Celsius x 100.
+# See provisioning/device-maps.js for provenance.
+AIOX_UNIT = 1
+AIOX_RTD_BASE = {"PT100": 41048, "PT1000": 41064, "NI1000_DIN43760": 41080}
+AIOX_TYPE_BASE = 40000          # channel measurement-mode block: 40000..40015
+AIOX_CHANNELS = 16
+
+
+def dump_aiox(client, unit):
+    """Read the whole AIOX RTD block so it is obvious which channels have a sensor."""
+    print(f"\n{'=' * 72}\nC4 AIOX RTD block (unit {unit})\n{'=' * 72}")
+
+    types, err = read_regs(client, unit, AIOX_TYPE_BASE, AIOX_CHANNELS)
+    if types is None:
+        print(f"  channel TYPE block @{AIOX_TYPE_BASE}: read failed ({err})")
+        print("  If the RTD registers below are also dead, the channel measurement mode")
+        print("  may have been reset -- see device-maps.js.")
+        types = [None] * AIOX_CHANNELS
+    else:
+        print(f"  channel TYPE block @{AIOX_TYPE_BASE}: {types}")
+
+    print(f"\n{'ch':>3}  {'TYPE':>6}" + "".join(f"{k:>22}" for k in AIOX_RTD_BASE))
+    for ch in range(1, AIOX_CHANNELS + 1):
+        cells = []
+        for kind, base in AIOX_RTD_BASE.items():
+            regs, err = read_regs(client, unit, base + ch - 1, 1)
+            if regs is None:
+                cells.append("read failed")
+                continue
+            raw = regs[0]
+            signed = raw - 65536 if raw > 32767 else raw
+            cells.append(f"{signed / 100.0:.2f} C  (raw {raw})")
+        t = types[ch - 1] if types[ch - 1] is not None else "-"
+        print(f"{ch:>3}  {str(t):>6}" + "".join(f"{c:>22}" for c in cells))
+
+    print(
+        "\n  A channel with a real PT1000 attached reads a plausible room or pipe\n"
+        "  temperature in its PT1000 column. Unpopulated channels typically read an\n"
+        "  extreme or pinned value (open circuit). Put the channels that look real into\n"
+        "  sites/<site>.json as tempSensors[].channel."
+    )
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--port", default="/dev/ttyAMA1", help="serial device (default /dev/ttyAMA1)")
@@ -129,6 +173,9 @@ def main():
     ap.add_argument("--units", type=int, nargs="*",
                     help="specific unit IDs to inspect; omit to scan 1-247")
     ap.add_argument("--verbose", action="store_true", help="also log units that do not answer")
+    ap.add_argument("--aiox", action="store_true",
+                    help="read the C4 AIOX RTD block instead (internal bus, unit 1); shows "
+                         "which analog channels have a temperature sensor attached")
     args = ap.parse_args()
 
     ModbusSerialClient = _load_client_class()
@@ -148,6 +195,9 @@ def main():
           f"timeout {args.timeout}s")
 
     try:
+        if args.aiox:
+            dump_aiox(client, AIOX_UNIT)
+            return
         if args.units:
             units = args.units
             print(f"\ninspecting unit(s): {units}")

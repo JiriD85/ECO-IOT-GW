@@ -128,7 +128,10 @@ A recent timestamp means the old unit is alive. Decommission it first.
 | Gap | Effect | How to close it |
 |---|---|---|
 | Unit IDs for PF2–PF4 | site files cannot be completed from the desk | `scan-modbus.py` per site |
-| Temperature sensors are **not Modbus devices** | `TS1`/`TS2` cannot be polled at all; the generator refuses to guess | hardware decision — Modbus RTD transmitter or MAX31865 board. See `docs/RESI_MIGRATION.md` §6 |
+| Which AIOX channels the PT1000 sensors occupy | `TS1`/`TS2` may read an unpopulated channel | `scan-modbus.py --port <internal> --aiox` |
+| Whether the AIOX channel TYPE survives the software swap | RTD registers read dead after reflashing | the `--aiox` scan prints the TYPE block; rewrite it if reset |
+| `internalSerial` port is not stable | AIOX and the Cinterion modem both enumerate as `ttyACM*` | pin the port with a udev rule by USB path |
+| LTE modem is Cinterion, not Quectel | `modem_service.py` targets Quectel AT commands | verify against this hardware; prefer ModemManager (`mmcli`) |
 | Totals are mantissa + exponent | energy/volume silently wrong by a power of ten if a meter's exponent is not 0 | read the exponent registers as their own keys + a TB calculated field, or a custom uplink converter |
 | 10 of 19 `CHC_*` keys unmapped | those keys stay absent on new gateways | see the table in `device-maps.js` |
 | `CHC_S_TemperatureDiff` | derivable, not a register | `Flow - Return`, verified exact against live data; add as a ThingsBoard calculated field |

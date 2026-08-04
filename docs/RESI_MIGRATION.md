@@ -20,24 +20,33 @@ were only reachable by digging; two of them silently corrupt data if you get the
 
 ---
 
-## 2. ⚠️ Before deploying: check the old unit is actually dead
+## 2. Scope: same hardware, new software
 
-The card analysed here belongs to **HWID `1F0022000D57435535333920`** = project `PKE_3`,
-measurement `PKE_3_1`. At the time of writing that site was **still live**, reporting
-telemetry the same day from a different LTE IP than the card recorded (`10.48.159.94` vs
-the card's `10.50.51.221`).
+The migration keeps the **RESI C4 hardware** and replaces only the SD card contents —
+Raspberry Pi OS plus ECO-IOT-GW and tb-gateway, in place of RESI's stack. Consequences
+worth being explicit about:
 
-Because the naming convention inherits the HWID, deploying a new gateway for a site whose
-old unit is still running makes **two gateways publish to the same child devices**. The
-symptom is subtle: alternating values and inactivity alarms that clear themselves.
+- **The HWID is inherited for free.** It belongs to the C4 carrier board, which stays.
+- **The AIOX analog inputs stay available**, so the PT1000 temperature sensors need no new
+  hardware — see §6.
+- **No risk of two gateways publishing at once**, since one box has one card slot and the
+  swap is atomic. (Do not confuse this with a hardware replacement, where the retired unit
+  must be confirmed dead first — inheriting a HWID while the old unit still runs makes two
+  publishers write to the same child devices, which shows up as alternating values and
+  self-clearing inactivity alarms rather than as an error.)
+- **The swap takes a live site offline.** The unit analysed here is HWID
+  `1F0022000D57435535333920` = project `PKE_3`, measurement `PKE_3_1`, and it was still
+  reporting on the day of analysis. Schedule accordingly.
+- **The backup image is not the running card.** It reports LTE IP `10.50.51.221` while the
+  live unit reports `10.48.159.94`, so the unit continued in service after this card came
+  out. If site-specific configuration matters, the card currently in the unit is the
+  authority, not this image.
 
-Check before every deployment:
+To check what a given HWID's devices are currently reporting:
 
 ```bash
 node provisioning/probe-tb.js fleet <HWID>
 ```
-
-If the newest timestamp is recent, the old unit is alive. Decommission it first.
 
 ---
 
@@ -234,23 +243,66 @@ single meter. Resolve per site with the bus scan; do not guess.
 
 ---
 
-## 6. The temperature sensors are not Modbus devices
+## 6. The temperature sensors — AIOX channels on the internal bus
 
-The RESI firmware exposes them only as `PT1000_CELSIUS` / `_FARENHEIT` / `_KELVIN`: they are
-PT1000 resistance thermometers wired into the **C4's onboard analog inputs**, read through
-the C4's own IO block. There is no Modbus register map for them anywhere because there never
-was one. (They do work — `TS1`/`TS2` report `temperature` on the live unit.)
+These are PT1000 resistance thermometers wired into the **C4 carrier board's onboard analog
+inputs**, not meters on the external RS485 bus. That is why no P-Flow-style register map for
+them exists in any gateway config.
 
-A Raspberry Pi has no equivalent analog input, so this is a hardware decision:
+**They are still readable over Modbus**, because the C4's analog IO expander (AIOX) is
+itself a Modbus slave at **unitId 1 on the board's internal serial link**. Since the C4
+hardware is being kept and only the software replaced, no additional RTD hardware is needed.
 
-- **A Modbus RTU RTD transmitter** on the existing RS485 bus — cheaper fit for this
-  architecture, since the connector then treats it as an ordinary slave and needs only a
-  register map in `device-maps.js`.
-- **An RTD interface board** (e.g. MAX31865 over SPI) plus a small local service to publish
-  the reading — more wiring and more code, but no extra bus device.
+The register list is documented inside the C4's own Node-RED flow
+("C4 Update AIOX PT100, PT1000, NI1000-DIN43760 Sensors"). Hardware there is a
+**C4-A-32DI24RO16AIOX** — 16 AIOX channels. Every RTD channel is **one signed 16-bit holding
+register carrying °C × 100**, so `16int` with `divider: 100`:
 
-Until one is chosen, `provisioning/generate-connector.js` deliberately **refuses** to emit
-config for `tempSensors` rather than guessing.
+| Sensor family | Channels 1–16 → registers |
+|---|---|
+| PT100 | 41048 – 41063 |
+| **PT1000** | **41064 – 41079** |
+| NI1000-DIN43760 | 41080 – 41095 |
+
+All three families are exposed simultaneously for all 16 channels — the AIOX computes each
+interpretation, and you read the block matching the physical sensor. Addresses are literal
+0-based register indices in the C4's 65536-register map. (The flow writes them as
+`4x41065, I:41064`; the `I:` form is what Modbus addresses and what tb-gateway's `address`
+field expects.)
+
+Encoded in `device-maps.js` as `TEMP_SENSOR.registerGroupsFor(channel, kind)`, and mirrored
+in `scan-modbus.py`.
+
+### Two things to verify on hardware
+
+1. **Which channels.** Which AIOX channels the site's two sensors occupy was never recorded.
+   Channels 1 and 2 are a guess. Read the whole block and see which channels return
+   plausible temperatures rather than an open-circuit value:
+
+   ```bash
+   sudo python3 provisioning/scan-modbus.py --port /dev/ttyACM1 --aiox
+   ```
+
+2. **Channel measurement mode.** Each channel's mode lives in a separate TYPE register block
+   at `40000`–`40015`, which the C4's flow both reads and writes. If that setting lives in
+   the OS rather than in the AIOX module's own non-volatile memory, replacing the software
+   resets it and the RTD registers go dead. The `--aiox` scan prints the TYPE block too.
+   Check it before concluding a sensor is broken.
+
+### This is a second serial port
+
+The AIOX sits on the board's **internal** link; the P-Flow meters are on the **external**
+RS485. Site files therefore carry both `serial` (meters) and `internalSerial` (AIOX), and
+the generator refuses to emit temperature-sensor config without the latter.
+
+On the original card the internal port was `/dev/ttyACM1`, but the **Cinterion** LTE modem
+(USB `idVendor 1e2d`) also enumerates as `ttyACM*`, so the numbering is **not stable across
+a rebuild**. Pin it with a udev rule by USB path before trusting it.
+
+> Note also that the modem is Cinterion, not Quectel. The repo's `modem_service.py` targets
+> Quectel AT commands, so LTE status and SMS features need checking against this hardware.
+> `RESICheckLTE.sh` on the old card used ModemManager (`mmcli`) instead, which is
+> vendor-neutral and worth preferring.
 
 ---
 
@@ -295,7 +347,10 @@ The per-gateway workflow is in [`provisioning/README.md`](../provisioning/README
 | Item | Blocked on |
 |---|---|
 | Unit IDs for PF2–PF4 | `scan-modbus.py` against real hardware, per site |
-| Temperature sensor hardware | decision in §6 |
+| Which AIOX channels the PT1000s occupy | `scan-modbus.py --aiox` |
+| Whether AIOX channel TYPE survives a reflash | `scan-modbus.py --aiox` prints the TYPE block |
+| Stable name for the internal serial port | udev rule by USB path; `ttyACM*` collides with the modem |
+| Cinterion vs Quectel in `modem_service.py` | test on this hardware; prefer `mmcli` |
 | Mantissa/exponent scaling done properly | exponent registers + TB calculated field, or a custom converter |
 | `Power_*` register sources | bus scan; all observed values are 0 |
 | Rule-chain behaviour on the new ingestion path | inspecting the chain that fans out `v1/devices/me/telemetry` |

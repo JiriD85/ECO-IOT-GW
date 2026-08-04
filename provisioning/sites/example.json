@@ -10,8 +10,14 @@
     "the one recovered config, and only for a single meter -- how PF2..PF4 are addressed",
     "was never recorded anywhere. Do not assume 88/89/90/91 or 1/2/3/4.",
     "",
-    "tempSensors: intentionally empty. The temperature sensor register map is still",
-    "unknown, so the generator refuses to emit config for them (see device-maps.js)."
+    "tempSensors: PT1000 RTDs on the C4's onboard AIOX channels, reached over the board's",
+    "INTERNAL serial link (internalSerial below) at unitId 1 -- not on the meter bus.",
+    "'channel' is the 1-based AIOX channel. Which channels the site's sensors occupy was",
+    "never recorded; verify with 'scan-modbus.py --aiox' before trusting 1 and 2.",
+    "",
+    "internalSerial: on the original card this was /dev/ttyACM1, but the Cinterion LTE",
+    "modem also enumerates as ttyACM*, so the numbering is not stable across a rebuild.",
+    "Pin it with a udev rule by USB path."
   ],
 
   "gatewayName": "pke_AT1100_iotgw02",
@@ -32,6 +38,15 @@
     "timeout": 35
   },
 
+  "internalSerial": {
+    "port": "/dev/ttyACM1",
+    "baudrate": 9600,
+    "bytesize": 8,
+    "parity": "N",
+    "stopbits": 1,
+    "timeout": 35
+  },
+
   "pflows": [
     { "suffix": "PF1", "unitId": 88 },
     { "suffix": "PF2", "unitId": 0 },
@@ -39,5 +54,8 @@
     { "suffix": "PF4", "unitId": 0 }
   ],
 
-  "tempSensors": []
+  "tempSensors": [
+    { "suffix": "TS1", "channel": 1, "kind": "PT1000" },
+    { "suffix": "TS2", "channel": 2, "kind": "PT1000" }
+  ]
 }
