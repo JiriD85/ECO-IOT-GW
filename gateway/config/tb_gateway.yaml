@@ -1,19 +1,43 @@
 # ThingsBoard IoT Gateway Configuration
+#
+# Values here mirror the general_configuration of the existing fleet (verified against
+# the eco-gw-01 device on diagnostics.ecoenergygroup.com, 2026-08-04).
+#
+# NOTE: MQTT does NOT go to the ThingsBoard REST/UI host. The UI is
+# https://diagnostics.ecoenergygroup.com but gateways connect to the MQTT load
+# balancer below. Pointing this at the REST host (or at demo.thingsboard.io) fails.
 thingsboard:
-  host: demo.thingsboard.io
+  host: lb-mqtt.pke-iot.expert
   port: 1883
+  # Remote shell is a second, always-on management channel over MQTT. This gateway
+  # already provides VPN + a web terminal, so it stays off by default; turn it on
+  # per-device only if you accept the extra attack surface.
   remoteShell: false
+  # Required for fleet management: connector configs are pulled from the device's
+  # shared attributes in ThingsBoard. See provisioning/README.md.
   remoteConfiguration: true
   statistics:
     enable: true
     statsSendPeriodInSeconds: 3600
   deviceFiltering:
     enable: false
-  maxPayloadSizeBytes: 1048576
-  minPackSendDelayMS: 0
+  maxPayloadSizeBytes: 8196
+  minPackSendDelayMS: 50
+  minPackSizeToSend: 500
   checkConnectorsConfigurationInSeconds: 60
   handleDeviceRenaming: true
+  checkingDeviceActivity:
+    checkDeviceInactivity: false
+    inactivityTimeoutSeconds: 300
+    inactivityCheckPeriodSeconds: 10
+  qos: 1
+  reportStrategy:
+    type: ON_RECEIVED
+    reportPeriod: 10000
+    ttl: 86400
   security:
+    # Per-device access token. Written by provisioning/provision-gateway.js, or via
+    # the web UI (ThingsBoard tab). Never commit a real token.
     accessToken: YOUR_ACCESS_TOKEN_HERE
 
 storage:
@@ -32,11 +56,6 @@ grpc:
   minPingIntervalWithoutDataMs: 5000
 
 connectors:
-  - name: Modbus Connector
+  - name: RS485_PF
     type: modbus
     configuration: modbus.json
-
-# Uncomment to enable MQTT connector
-#  - name: MQTT Connector
-#    type: mqtt
-#    configuration: mqtt.json
