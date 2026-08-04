@@ -1,0 +1,43 @@
+{
+  "_comment": [
+    "Template for one gateway. Copy to sites/<gatewayName>.json and fill in.",
+    "",
+    "hwid: inherit the 24-hex-char HWID of the RESI unit this Pi replaces, so the child",
+    "device names stay identical in ThingsBoard and existing dashboards keep binding.",
+    "Read it off the ECO_<HWID>_gw device of the unit being replaced.",
+    "",
+    "unitId: MUST be verified per site with scan-modbus.py. Only unitId 88 is known from",
+    "the one recovered config, and only for a single meter -- how PF2..PF4 are addressed",
+    "was never recorded anywhere. Do not assume 88/89/90/91 or 1/2/3/4.",
+    "",
+    "tempSensors: intentionally empty. The temperature sensor register map is still",
+    "unknown, so the generator refuses to emit config for them (see device-maps.js)."
+  ],
+
+  "gatewayName": "pke_AT1100_iotgw02",
+  "description": "Raspberry Pi replacement for RESI unit at <site>",
+
+  "hwid": "REPLACE_WITH_24_HEX_HWID",
+
+  "connectorName": "RS485_PF",
+  "logLevel": "INFO",
+  "pollPeriod": 30000,
+
+  "serial": {
+    "port": "/dev/ttyAMA1",
+    "baudrate": 9600,
+    "bytesize": 8,
+    "parity": "N",
+    "stopbits": 1,
+    "timeout": 35
+  },
+
+  "pflows": [
+    { "suffix": "PF1", "unitId": 88 },
+    { "suffix": "PF2", "unitId": 0 },
+    { "suffix": "PF3", "unitId": 0 },
+    { "suffix": "PF4", "unitId": 0 }
+  ],
+
+  "tempSensors": []
+}

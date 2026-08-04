@@ -51,6 +51,12 @@ Thumbs.db
 gateway/logs/
 gateway/extensions/*.py
 
+# Provisioning output — generated configs contain live access tokens
+provisioning/out/
+# Per-site definitions may identify customer sites; keep the template only
+provisioning/sites/*.json
+!provisioning/sites/example.json
+
 # Backup
 backups/
 

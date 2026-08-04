@@ -6,6 +6,22 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ECO-IOT-GW is an IoT Gateway management system for Raspberry Pi (Pi4, Pi5, CM4) designed to work with ThingsBoard IoT Gateway. It provides a web interface for configuring VPN connections, LTE modems, RS485/Modbus, Docker containers, and system settings.
 
+## READ FIRST when working on gateway/Modbus/ThingsBoard configuration
+
+[docs/RESI_MIGRATION.md](docs/RESI_MIGRATION.md) — analysis of the RESI Doctor-Kit units
+this project replaces, and the verified P-Flow D116 register map. Contains facts that are
+not derivable from this codebase and that silently corrupt data if guessed:
+
+- The MQTT endpoint is `lb-mqtt.pke-iot.expert` (1883 plain / 8883 TLS), **not** the
+  ThingsBoard REST host.
+- The P-Flow D116 is **mixed-endian** — each meter needs two slave entries.
+- Its totals are **mantissa + exponent**, so a constant divider is only conditionally right.
+- The temperature sensors are **PT1000 analog, not Modbus devices**.
+- Child device names must match `ECO_<HWID>_PF1..PF4` / `_TS1..TS2` / `_gw` exactly, with
+  the HWID **inherited** from the RESI unit being replaced.
+
+Provisioning workflow for new gateways: [provisioning/README.md](provisioning/README.md).
+
 ## Build & Development Commands
 
 ### Backend (FastAPI/Python)
