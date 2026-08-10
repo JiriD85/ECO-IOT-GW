@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ECO Telemetry — one converging node map (RESI + ECO GW)</title>
+<style>
+  :root{
+    --bg:#f5f6f8; --panel:#ffffff; --ink:#1c2430; --muted:#5c6672; --line:#c4ccd6;
+    --resi-bg:#eef1f5; --resi-bd:#8f9aa8; --resi-ink:#26303c;
+    --new-bg:#e6f6ec; --new-bd:#3a9d5d; --new-ink:#155f30;
+    --shared-bg:#e5f0fb; --shared-bd:#2f7fd1; --shared-ink:#134a80;
+    --gate-bg:#fff3d6; --gate-bd:#d1a03a; --gate-ink:#7a5610;
+    --arrow:#8a95a3;
+    --shadow:0 1px 2px rgba(20,30,45,.10),0 2px 8px rgba(20,30,45,.06);
+    --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#0f141a; --panel:#161d26; --ink:#e6ebf1; --muted:#9aa6b4; --line:#333d49;
+      --resi-bg:#1d2530; --resi-bd:#4a5665; --resi-ink:#d6dde5;
+      --new-bg:#123122; --new-bd:#3fae66; --new-ink:#8fe0aa;
+      --shared-bg:#0f2a44; --shared-bd:#4a9ae6; --shared-ink:#a9d3f5;
+      --gate-bg:#3a2f10; --gate-bd:#c9a44a; --gate-ink:#e9cd88;
+      --arrow:#6b7684;
+      --shadow:0 1px 2px rgba(0,0,0,.45),0 2px 10px rgba(0,0,0,.35);
+    }
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.5;font-size:15px;
+    padding:24px 20px 64px;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1200px;margin:0 auto}
+  h1{font-size:1.5rem;margin:0 0 6px;letter-spacing:-.01em}
+  .sub{color:var(--muted);margin:0 0 18px;max-width:82ch}
+  .sub code,.foot code,.headline code{font-family:var(--mono);font-size:.86em;background:color-mix(in srgb,var(--resi-bg) 70%,transparent);
+    padding:1px 5px;border-radius:4px;border:1px solid var(--line)}
+  .headline{background:color-mix(in srgb,var(--shared-bg) 45%,transparent);border:1px solid var(--shared-bd);
+    border-radius:10px;padding:12px 15px;margin:0 0 22px;font-size:.92rem}
+  .headline b{color:var(--shared-ink)}
+
+  .legend{display:flex;flex-wrap:wrap;gap:10px 18px;margin:0 0 20px;padding:12px 14px;background:var(--panel);
+    border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow)}
+  .legend .item{display:flex;align-items:center;gap:8px;font-size:.85rem;color:var(--muted)}
+  .sw{width:26px;height:16px;border-radius:4px;border:1.5px solid;flex:none}
+  .sw.resi{background:var(--resi-bg);border-color:var(--resi-bd)}
+  .sw.new{background:var(--new-bg);border-color:var(--new-bd)}
+  .sw.shared{background:var(--shared-bg);border-color:var(--shared-bd)}
+  .sw.gate{background:var(--gate-bg);border-color:var(--gate-bd)}
+
+  .cmp-scroll{overflow-x:auto;margin:0 0 24px;border-radius:10px;border:1px solid var(--line);box-shadow:var(--shadow)}
+  table.cmp{border-collapse:collapse;width:100%;min-width:640px;background:var(--panel);font-size:.88rem}
+  table.cmp th,table.cmp td{text-align:left;padding:9px 13px;border-bottom:1px solid var(--line);vertical-align:top}
+  table.cmp thead th{background:var(--resi-bg);color:var(--ink);font-weight:600}
+  table.cmp th.row{font-weight:600;white-space:nowrap}
+  table.cmp td.eco{color:var(--new-ink);background:color-mix(in srgb,var(--new-bg) 40%,transparent)}
+  table.cmp code{font-family:var(--mono);font-size:.85em}
+  table.cmp tr:last-child td{border-bottom:none}
+
+  .maptitle{font-weight:600;font-size:1.05rem;margin:6px 0 10px}
+  .map-scroll{overflow-x:auto;background:var(--panel);border:1px solid var(--line);border-radius:12px;
+    box-shadow:var(--shadow);padding:8px}
+  svg.map{display:block;width:100%;height:auto;min-width:820px}
+
+  /* SVG edges */
+  .edge{fill:none;stroke:var(--arrow);stroke-width:2}
+  .edge.dash{stroke-dasharray:6 5}
+
+  /* foreignObject node styling */
+  .n{height:100%;border:1.6px solid var(--resi-bd);background:var(--resi-bg);color:var(--resi-ink);
+    border-radius:10px;padding:7px 10px;overflow:hidden;font-family:var(--sans);display:flex;flex-direction:column}
+  .n.eco{border-color:var(--new-bd);background:var(--new-bg);color:var(--new-ink)}
+  .n.shared{border-color:var(--shared-bd);background:var(--shared-bg);color:var(--shared-ink)}
+  .n.gate{border-color:var(--gate-bd);background:var(--gate-bg);color:var(--gate-ink);border-width:2.4px;
+    box-shadow:0 0 0 3px color-mix(in srgb,var(--gate-bd) 35%,transparent)}
+  .n .t{font-weight:700;font-size:.8rem;line-height:1.2;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+  .n .d{font-size:.68rem;color:var(--muted);line-height:1.25;margin-top:2px}
+  .n.shared .d,.n.gate .d,.n.eco .d{color:inherit;opacity:.78}
+  .n .keys{margin-top:auto;padding-top:4px;display:flex;flex-wrap:wrap;gap:3px}
+  .n .keys code{font-family:var(--mono);font-size:.6rem;line-height:1.3;background:color-mix(in srgb,var(--panel) 55%,transparent);
+    border:1px solid var(--line);border-radius:4px;padding:0 4px;color:var(--ink)}
+  .n .badge{font-size:.55rem;font-weight:800;letter-spacing:.04em;text-transform:uppercase;padding:1px 5px;
+    border-radius:999px;border:1px solid currentColor;opacity:.85}
+
+  /* edge labels */
+  .elabel{height:100%;display:flex;align-items:center;justify-content:center;text-align:center;
+    font-size:.64rem;font-family:var(--mono);color:var(--muted);background:var(--panel);
+    border:1px dashed var(--line);border-radius:6px;padding:2px 5px;line-height:1.2}
+  .elabel.hot{color:var(--gate-ink);border-color:var(--gate-bd);background:color-mix(in srgb,var(--gate-bg) 60%,var(--panel))}
+
+  .colhdr{font-weight:800;font-size:.7rem;letter-spacing:.06em;text-transform:uppercase;
+    text-align:center;border-radius:999px;padding:3px 0;height:100%}
+  .colhdr.resi{color:var(--resi-ink);background:color-mix(in srgb,var(--resi-bg) 80%,transparent);border:1px solid var(--resi-bd)}
+  .colhdr.eco{color:var(--new-ink);background:color-mix(in srgb,var(--new-bg) 60%,transparent);border:1px solid var(--new-bd)}
+
+  .foot{margin-top:26px;font-size:.8rem;color:var(--muted);max-width:100ch}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>ECO telemetry — one converging node map</h1>
+  <p class="sub">
+    Two ingest paths, one destination. Field units are migrating from proprietary <b>RESI</b>
+    software to standard ThingsBoard <b>tb-gateway</b> (<code>ECO GW</code>) software — in
+    <b>parallel, non-breaking</b>. Below, both paths live on a single canvas: they diverge at the
+    top and <b>merge</b> into one shared trunk that is drawn <b>once</b>. Left path sourced strictly
+    from <code>TELEMETRY_PIPELINE.md</code>; right path is the migration design.
+  </p>
+
+  <div class="headline">
+    <b>Headline:</b> both paths feed the exact same <code>Switch to Measurement</code> gate →
+    Measurement asset → Calculated Fields → alarms → dashboards. The RESI path threads a long
+    split/rename/normalize chain to get there; the ECO GW path collapses that whole middle to a
+    single hop, because the Modbus connector emits <b>canonical, pre-scaled</b> keys and the
+    platform splits <code>v1/gateway/telemetry</code> <b>per child device</b>.
+  </div>
+
+  <div class="legend" role="group" aria-label="Legend">
+    <span class="item"><span class="sw resi"></span>RESI-only node</span>
+    <span class="item"><span class="sw new"></span>ECO GW-only node</span>
+    <span class="item"><span class="sw shared"></span>Shared node (drawn once)</span>
+    <span class="item"><span class="sw gate"></span>Amber = shared single point of failure (<code>Switch to Measurement</code>)</span>
+  </div>
+
+  <div class="cmp-scroll">
+    <table class="cmp">
+      <thead><tr><th class="row">Aspect</th><th>Current — RESI software</th><th>New — ECO GW (tb-gateway)</th></tr></thead>
+      <tbody>
+        <tr><th class="row">Transport</th><td>One aggregated MQTT blob addressed to the <b>gateway device</b>, all sub-devices at once</td><td class="eco">MQTT gateway API <code>v1/gateway/telemetry</code></td></tr>
+        <tr><th class="row">Splitting</th><td><code>Process Meters</code> JS node splits the batch in the rule chain</td><td class="eco"><b>Platform</b> splits per child device — each runs its own profile chain</td></tr>
+        <tr><th class="row">Scaling &amp; rename</th><td>Raw <code>CHC_*</code> → <code>Rename Power Keys</code> + <code>Normalize Data</code></td><td class="eco"><b>None</b> — connector emits canonical keys, scaled per register (<code>divider</code>/<code>multiplier</code>)</td></tr>
+        <tr><th class="row">Originator hops</th><td><code>Change Device</code> then <code>Switch to Measurement</code></td><td class="eco">Only <code>Switch to Measurement</code></td></tr>
+        <tr><th class="row">Calculated Fields</th><td>10 CFs on <code>Measurement</code> asset profile</td><td class="eco"><b>Same 10 reused</b> + 2 new CFs on cloned <code>Measurement GW</code> profile</td></tr>
+        <tr><th class="row">Device profiles</th><td><code>P-Flow D116</code>, <code>Temperature Sensor</code>, <code>RESI</code></td><td class="eco">Clones <code>… GW</code> → new minimal chain</td></tr>
+        <tr><th class="row">Alarms &amp; dashboards</th><td>Measurement CORE → EM Alarm Handler; dashboards read the asset</td><td class="eco"><b>Shared / unchanged</b></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="maptitle">Unified pipeline node map — two entries converge to one trunk</div>
+  <div class="map-scroll">
+    <svg class="map" viewBox="0 0 1140 1780" role="img"
+         aria-label="Directed node graph: RESI path and ECO GW path converge into a single shared Switch-to-Measurement gate and downstream trunk.">
+      <defs>
+        <marker id="arrow" markerWidth="12" markerHeight="12" refX="8.5" refY="5" orient="auto-start-reverse" markerUnits="userSpaceOnUse">
+          <path d="M0,0 L9,5 L0,10 z" fill="var(--arrow)"/>
+        </marker>
+      </defs>
+
+      <!-- ============ EDGES (drawn first, under nodes) ============ -->
+      <!-- RESI column vertical chain (x=250) -->
+      <path class="edge" d="M250,132 L250,152" marker-end="url(#arrow)"/>
+      <path class="edge" d="M250,216 L250,248" marker-end="url(#arrow)"/>
+      <path class="edge" d="M250,324 L250,356" marker-end="url(#arrow)"/>
+      <path class="edge" d="M250,420 L250,452" marker-end="url(#arrow)"/>
+      <path class="edge" d="M250,544 L250,576" marker-end="url(#arrow)"/>
+      <path class="edge" d="M250,652 L250,684" marker-end="url(#arrow)"/>
+      <path class="edge" d="M250,748 L250,780" marker-end="url(#arrow)"/>
+      <path class="edge" d="M250,856 L250,888" marker-end="url(#arrow)"/>
+      <path class="edge" d="M250,952 L250,984" marker-end="url(#arrow)"/>
+
+      <!-- ECO column vertical chain (x=890) -->
+      <path class="edge" d="M890,160 L890,192" marker-end="url(#arrow)"/>
+      <path class="edge" d="M890,256 L890,288" marker-end="url(#arrow)"/>
+      <path class="edge" d="M890,364 L890,396" marker-end="url(#arrow)"/>
+      <path class="edge" d="M890,472 L890,504" marker-end="url(#arrow)"/>
+
+      <!-- CONVERGE: RESI (bottom of Normalize, 250,1094) into gate top-left -->
+      <path class="edge" d="M250,1094 C250,1150 470,1150 505,1174" marker-end="url(#arrow)"/>
+      <!-- CONVERGE: ECO (bottom of Save Ts, 890,614) long drop into gate top-right -->
+      <path class="edge" d="M890,614 C890,1030 660,1140 635,1174" marker-end="url(#arrow)"/>
+
+      <!-- Shared trunk (x=570) -->
+      <path class="edge" d="M570,1266 L570,1298" marker-end="url(#arrow)"/>
+      <path class="edge" d="M570,1374 L570,1406" marker-end="url(#arrow)"/>
+      <path class="edge" d="M570,1522 L570,1554" marker-end="url(#arrow)"/>
+      <path class="edge" d="M570,1650 L570,1682" marker-end="url(#arrow)"/>
+
+      <!-- GW-only CF nodes attached to CF region (dashed) -->
+      <path class="edge dash" d="M900,1420 L742,1440" marker-end="url(#arrow)"/>
+      <path class="edge dash" d="M900,1500 L742,1470" marker-end="url(#arrow)"/>
+
+      <!-- ============ COLUMN HEADERS ============ -->
+      <foreignObject x="125" y="6" width="250" height="26"><div xmlns="http://www.w3.org/1999/xhtml" class="colhdr resi">RESI software path</div></foreignObject>
+      <foreignObject x="765" y="6" width="250" height="26"><div xmlns="http://www.w3.org/1999/xhtml" class="colhdr eco">ECO GW (tb-gateway) path</div></foreignObject>
+
+      <!-- ============ RESI NODES (x center 250, left=125 w=250) ============ -->
+      <foreignObject x="125" y="40" width="250" height="92"><div xmlns="http://www.w3.org/1999/xhtml" class="n resi">
+        <div class="t">Sensor / meter</div>
+        <div class="d">P-Flow D116 (Modbus) + PT1000 RTDs → raw meter registers</div>
+        <div class="keys"><code>CHC_S_TemperatureFlow</code><code>CHC_S_VolumeFlow</code><code>CHC_S_Power_Heating</code><code>temperature</code></div>
+      </div></foreignObject>
+
+      <foreignObject x="125" y="152" width="250" height="64"><div xmlns="http://www.w3.org/1999/xhtml" class="n resi">
+        <div class="t">ECO IoT Gateway → TB Gateway</div>
+        <div class="d">Reads M-Bus / Modbus; publishes raw <code>CHC_*</code></div>
+      </div></foreignObject>
+
+      <foreignObject x="125" y="248" width="250" height="76"><div xmlns="http://www.w3.org/1999/xhtml" class="n resi">
+        <div class="t">Aggregated MQTT blob</div>
+        <div class="d">One message to the GATEWAY device, all sub-devices keyed by child name</div>
+      </div></foreignObject>
+
+      <foreignObject x="125" y="356" width="250" height="64"><div xmlns="http://www.w3.org/1999/xhtml" class="n resi">
+        <div class="t">RESI CORE → RESI Device</div>
+        <div class="d">Root RC → Device Profile → resi_device.json</div>
+      </div></foreignObject>
+
+      <foreignObject x="125" y="452" width="250" height="92"><div xmlns="http://www.w3.org/1999/xhtml" class="n resi">
+        <div class="t">Process Meters <span class="badge">JS split</span></div>
+        <div class="d">Splits the batch into one msg per device; computes temperature diff</div>
+        <div class="keys"><code>CHC_S_TemperatureDiff</code></div>
+      </div></foreignObject>
+
+      <foreignObject x="125" y="576" width="250" height="76"><div xmlns="http://www.w3.org/1999/xhtml" class="n resi">
+        <div class="t">Change Device <span class="badge">originator</span></div>
+        <div class="d">GATEWAY → physical DEVICE via <code>Contains</code> relation (FROM)</div>
+      </div></foreignObject>
+
+      <foreignObject x="125" y="684" width="250" height="64"><div xmlns="http://www.w3.org/1999/xhtml" class="n resi">
+        <div class="t">Rename Power Keys</div>
+        <div class="d"><code>CHC_C_Power_*</code> → <code>CHC_S_Power_*</code> (+ no-op Skip-negative)</div>
+      </div></foreignObject>
+
+      <foreignObject x="125" y="780" width="250" height="76"><div xmlns="http://www.w3.org/1999/xhtml" class="n resi">
+        <div class="t">Save Timeseries — on DEVICE</div>
+        <div class="d">Raw <code>CHC_*</code> persisted on the physical device</div>
+      </div></foreignObject>
+
+      <foreignObject x="125" y="888" width="250" height="64"><div xmlns="http://www.w3.org/1999/xhtml" class="n resi">
+        <div class="t">Get Measurement Attributes</div>
+        <div class="d">Fetches <code>installationType</code> into metadata</div>
+      </div></foreignObject>
+
+      <foreignObject x="125" y="984" width="250" height="110"><div xmlns="http://www.w3.org/1999/xhtml" class="n resi">
+        <div class="t">Normalize Data <span class="badge">TBEL rename</span></div>
+        <div class="d">Rename <code>CHC_*</code>→canonical + ÷scaling + heating/cooling select; creates <code>dT_K</code>=abs(flow−return)</div>
+        <div class="keys"><code>T_flow_C</code><code>T_return_C</code><code>dT_K</code><code>Vdot_m3h</code><code>v_ms</code><code>P_th_kW</code><code>E_th_kWh</code><code>V_m3</code><code>auxT1_C</code><code>auxT2_C</code></div>
+      </div></foreignObject>
+
+      <!-- ============ ECO NODES (x center 890, left=765 w=250) ============ -->
+      <foreignObject x="765" y="40" width="250" height="120"><div xmlns="http://www.w3.org/1999/xhtml" class="n eco">
+        <div class="t">Sensor / meter <span class="badge">canonical @ connector</span></div>
+        <div class="d">P-Flow D116 + PT1000. Modbus connector scales per register (<code>divider</code>/<code>multiplier</code>) → canonical keys emitted directly</div>
+        <div class="keys"><code>T_flow_C</code><code>T_return_C</code><code>Vdot_m3h ÷1000</code><code>v_ms</code><code>V_m3</code><code>E_th_heating_kWh ÷3600</code><code>E_th_cooling_kWh ÷3600</code><code>auxT1_C</code><code>auxT2_C</code></div>
+      </div></foreignObject>
+
+      <foreignObject x="765" y="192" width="250" height="64"><div xmlns="http://www.w3.org/1999/xhtml" class="n eco">
+        <div class="t">ECO IoT Gateway → tb-gateway</div>
+        <div class="d">Standard ThingsBoard gateway (Docker)</div>
+      </div></foreignObject>
+
+      <foreignObject x="765" y="288" width="250" height="76"><div xmlns="http://www.w3.org/1999/xhtml" class="n eco">
+        <div class="t">Gateway API <code>v1/gateway/telemetry</code></div>
+        <div class="d">One MQTT connection, many logical child devices</div>
+      </div></foreignObject>
+
+      <foreignObject x="765" y="396" width="250" height="76"><div xmlns="http://www.w3.org/1999/xhtml" class="n eco">
+        <div class="t">Platform per-child split <span class="badge">platform</span></div>
+        <div class="d">Platform emits one POST_TELEMETRY per child (meter · temp sensor · GW-health); each runs its own profile chain</div>
+      </div></foreignObject>
+
+      <foreignObject x="765" y="504" width="250" height="110"><div xmlns="http://www.w3.org/1999/xhtml" class="n eco">
+        <div class="t">Save Timeseries — on DEVICE <span class="badge">GW chain</span></div>
+        <div class="d">Canonical keys already emitted &amp; scaled by the connector. No split, no rename, no normalize.</div>
+        <div class="keys"><code>T_flow_C</code><code>T_return_C</code><code>Vdot_m3h</code><code>v_ms</code><code>V_m3</code><code>E_th_heating_kWh</code><code>E_th_cooling_kWh</code></div>
+      </div></foreignObject>
+
+      <!-- eliminated note -->
+      <foreignObject x="765" y="632" width="250" height="118"><div xmlns="http://www.w3.org/1999/xhtml" class="n eco" style="border-style:dashed;opacity:.92">
+        <div class="t">✕ Collapsed vs RESI</div>
+        <div class="d" style="opacity:1">Process Meters · Change Device · Rename Power Keys · Get Attributes · Normalize Data are all <b>eliminated</b> — split by platform, scaling &amp; canonical rename done at the connector.</div>
+      </div></foreignObject>
+
+      <!-- merge edge label -->
+      <foreignObject x="452" y="1096" width="236" height="46"><div xmlns="http://www.w3.org/1999/xhtml" class="elabel hot">both paths converge → one shared gate</div></foreignObject>
+
+      <!-- ============ SHARED GATE + TRUNK (x center 570) ============ -->
+      <foreignObject x="400" y="1174" width="340" height="92"><div xmlns="http://www.w3.org/1999/xhtml" class="n gate">
+        <div class="t">Switch to Measurement <span class="badge">single point of failure</span></div>
+        <div class="d">RELATED — walks <code>Measurement</code> relation (TO) DEVICE → ASSET. The one node shared by both paths; if the relation is missing, everything downstream silently stops.</div>
+      </div></foreignObject>
+
+      <foreignObject x="415" y="1298" width="310" height="76"><div xmlns="http://www.w3.org/1999/xhtml" class="n shared">
+        <div class="t">MEASUREMENT ASSET</div>
+        <div class="d">Canonical keys land here — same asset instance for both paths</div>
+      </div></foreignObject>
+
+      <foreignObject x="390" y="1406" width="360" height="116"><div xmlns="http://www.w3.org/1999/xhtml" class="n shared">
+        <div class="t">Calculated Fields — Measurement asset profile</div>
+        <div class="d">10 CFs read canonical keys + rolling windows; identical for both paths</div>
+        <div class="keys"><code>is_on</code><code>load_class</code><code>data_quality</code><code>P_th_calc_kW</code><code>P_deviation_pct</code><code>schedule_violation</code><code>dT_collapse_flag</code><code>cycling_flag</code><code>flow_spike_flag</code><code>power_stability</code><code>oscillation_flag</code><code>runtime_pct</code></div>
+      </div></foreignObject>
+
+      <!-- GW-only extra CFs -->
+      <foreignObject x="900" y="1388" width="230" height="64"><div xmlns="http://www.w3.org/1999/xhtml" class="n eco">
+        <div class="t">CF <code>dT_K</code> <span class="badge">GW-only</span></div>
+        <div class="d"><code>dT_K = abs(T_flow_C − T_return_C)</code></div>
+      </div></foreignObject>
+      <foreignObject x="900" y="1468" width="230" height="72"><div xmlns="http://www.w3.org/1999/xhtml" class="n eco">
+        <div class="t">CF heating/cooling select <span class="badge">GW-only</span></div>
+        <div class="d">Selects <code>E_th_kWh</code>/<code>P_th_kW</code> by <code>installationType</code>. Both on cloned <code>Measurement GW</code> profile.</div>
+      </div></foreignObject>
+
+      <!-- CF output edge label -->
+      <foreignObject x="596" y="1534" width="300" height="40"><div xmlns="http://www.w3.org/1999/xhtml" class="elabel">CF output re-enters engine as Post-telemetry on asset</div></foreignObject>
+
+      <foreignObject x="390" y="1554" width="360" height="96"><div xmlns="http://www.w3.org/1999/xhtml" class="n shared">
+        <div class="t">Measurement CORE — 5 alarm switches</div>
+        <div class="d">dT collapse · cycling · flow spike · power unstable · oscillation → Create/Clear Alarm → EM Alarm Handler</div>
+      </div></foreignObject>
+
+      <foreignObject x="440" y="1682" width="260" height="64"><div xmlns="http://www.w3.org/1999/xhtml" class="n shared">
+        <div class="t">Dashboards + Widgets</div>
+        <div class="d">Read from the Measurement asset — unchanged, keep working</div>
+      </div></foreignObject>
+
+    </svg>
+  </div>
+
+  <p class="foot">
+    RESI device/asset profiles stay bound to their <code>Doktorkit</code> / <code>RESI</code> chains
+    (untouched, ~700 live devices). GW profiles (<code>P-Flow D116 GW</code>,
+    <code>Temperature Sensor GW</code>, <code>ECO GW</code>) get the new minimal chain, and a cloned
+    <code>Measurement GW</code> asset profile carries the two extra CFs so <code>dT_K</code> does not
+    collide with RESI's <code>Normalize</code> output. Both paths meet at the single amber
+    <code>Switch to Measurement</code> gate and share everything below it.
+  </p>
+
+</div>
+</body>
+</html>

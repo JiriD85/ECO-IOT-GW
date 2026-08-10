@@ -67,6 +67,20 @@ const KJ_TO_KWH = 3600;
  * converter. Until then, treat energy and volume totals as provisional and check them
  * against each meter's own display. Do not "tidy" the addresses.
  */
+// l/h the D116 reports on the volume-flow register vs the m3/h the fleet stores.
+const LH_TO_M3H = 1000;
+
+/**
+ * Each register also carries the CANONICAL key + scaling the tb-gateway ("ECO GW")
+ * pipeline emits directly, so the rename/normalize rule-chain layer is unnecessary.
+ * `canonical: true` on the generator switches `tag`/`divider` to these. This keeps the
+ * raw-CHC_* map and the canonical map in ONE place -- the addresses cannot drift apart.
+ *
+ * The RESI `Normalize Data` node was the reference for the names and conversions
+ * (T_flow_C, Vdot_m3h = VolumeFlow/1000, E_th_kWh = Energy/3600, ...). Heating vs
+ * cooling energy is NOT selected here -- the connector cannot read installationType, so
+ * both totals are emitted and a `Measurement GW` calculated field picks E_th_kWh.
+ */
 const PFLOW_D116 = {
   deviceType: 'P-Flow D116',
   /** One entry per required byte/word-order combination. */
@@ -75,112 +89,121 @@ const PFLOW_D116 = {
       byteOrder: 'BIG',
       wordOrder: 'BIG',
       timeseries: [
-        { tag: 'CHC_S_VolumeFlow', type: '32float', functionCode: 3, objectsCount: 2, address: 5 },
-        { tag: 'CHC_S_Velocity', type: '32float', functionCode: 3, objectsCount: 2, address: 7 },
-        { tag: 'CHC_S_TemperatureFlow', type: '32float', functionCode: 3, objectsCount: 2, address: 74 },
-        { tag: 'CHC_S_TemperatureReturn', type: '32float', functionCode: 3, objectsCount: 2, address: 76 },
+        { tag: 'CHC_S_VolumeFlow', type: '32float', functionCode: 3, objectsCount: 2, address: 5, canonicalTag: 'Vdot_m3h', canonicalDivider: LH_TO_M3H },
+        { tag: 'CHC_S_Velocity', type: '32float', functionCode: 3, objectsCount: 2, address: 7, canonicalTag: 'v_ms' },
+        { tag: 'CHC_S_TemperatureFlow', type: '32float', functionCode: 3, objectsCount: 2, address: 74, canonicalTag: 'T_flow_C' },
+        { tag: 'CHC_S_TemperatureReturn', type: '32float', functionCode: 3, objectsCount: 2, address: 76, canonicalTag: 'T_return_C' },
       ],
     },
     {
       byteOrder: 'BIG',
       wordOrder: 'LITTLE',
       timeseries: [
-        { tag: 'CHC_M_Volume', type: '32int', functionCode: 3, objectsCount: 2, address: 8 },
-        { tag: 'CHC_M_Volume_Neg', type: '32int', functionCode: 3, objectsCount: 2, address: 11 },
-        { tag: 'CHC_M_Volume_Net', type: '32int', functionCode: 3, objectsCount: 2, address: 14 },
+        { tag: 'CHC_M_Volume', type: '32int', functionCode: 3, objectsCount: 2, address: 8, canonicalTag: 'V_m3' },
+        { tag: 'CHC_M_Volume_Neg', type: '32int', functionCode: 3, objectsCount: 2, address: 11, canonicalTag: 'V_neg_m3' },
+        { tag: 'CHC_M_Volume_Net', type: '32int', functionCode: 3, objectsCount: 2, address: 14, canonicalTag: 'V_net_m3' },
         // The recovered config had no divider here and would have reported raw kJ. The
         // fleet stores kWh, so the RESI firmware did this scaling. VERIFY against a
         // meter's own display before trusting the absolute value.
-        { tag: 'CHC_M_Energy_Heating', type: '32int', functionCode: 3, objectsCount: 2, address: 77, divider: KJ_TO_KWH },
-        { tag: 'CHC_M_Energy_Cooling', type: '32int', functionCode: 3, objectsCount: 2, address: 80, divider: KJ_TO_KWH },
+        { tag: 'CHC_M_Energy_Heating', type: '32int', functionCode: 3, objectsCount: 2, address: 77, divider: KJ_TO_KWH, canonicalTag: 'E_th_heating_kWh', canonicalDivider: KJ_TO_KWH },
+        { tag: 'CHC_M_Energy_Cooling', type: '32int', functionCode: 3, objectsCount: 2, address: 80, divider: KJ_TO_KWH, canonicalTag: 'E_th_cooling_kWh', canonicalDivider: KJ_TO_KWH },
+        // Exponent registers (one 16-bit signed register each) for the two energy totals,
+        // datasheet-confirmed (GENTOS D116, see pflow-d116-register-map). The true total is
+        // mantissa x 10^exponent, so the divider on the mantissa above is only correct while
+        // these read 0 (they do on every meter seen so far). Exposed as raw keys so a
+        // calculated field can apply 10^exp and keep E_th_kWh always in true kWh -- the
+        // connector itself cannot combine two registers. Single register => word order N/A.
+        { tag: 'CHC_M_Energy_Heating_Exp', type: '16int', functionCode: 3, objectsCount: 1, address: 79, canonicalTag: 'E_th_heating_exp' },
+        { tag: 'CHC_M_Energy_Cooling_Exp', type: '16int', functionCode: 3, objectsCount: 1, address: 82, canonicalTag: 'E_th_cooling_exp' },
       ],
     },
   ],
 };
 
 /**
- * Temperature sensors -- the RESI C4's onboard AIOX analog inputs.
- *
- * These are PT1000 resistance thermometers wired into the C4 carrier board, NOT meters on
- * the external RS485 bus. That is why no P-Flow-style register map for them exists in any
- * gateway config. They are still reachable over Modbus, though: the C4's analog IO
- * expander is itself a Modbus slave at unitId 1 on the board's INTERNAL serial link.
- *
- * Recovered from the register list documented inside the C4's own Node-RED flow
- * ("C4 Update AIOX PT100, PT1000, NI1000-DIN43760 Sensors") on the original SD card.
- * Hardware there was a C4-A-32DI24RO16AIOX: 16 AIOX channels.
- *
- * Every RTD channel is ONE signed 16-bit holding register carrying degrees Celsius x 100,
- * so `16int` with `divider: 100`. All three sensor families are exposed simultaneously for
- * all 16 channels -- the AIOX computes each interpretation and you read the block that
- * matches the physical sensor:
- *
- *   PT100            inputs 1..16 -> registers 41048..41063
- *   PT1000           inputs 1..16 -> registers 41064..41079
- *   NI1000-DIN43760  inputs 1..16 -> registers 41080..41095
- *
- * Addresses are literal 0-based register indices in the C4's 65536-register map (the flow
- * writes them as "4x41065, I:41064"; the I: form is what Modbus actually addresses, and
- * what tb-gateway's `address` field expects).
- *
- * TWO THINGS TO VERIFY ON HARDWARE:
- *
- *  1. WHICH CHANNELS. Which AIOX channels the site's two sensors occupy was never
- *     recorded. Channels 1 and 2 are the obvious guess and are only that -- read the
- *     whole block (41064, count 16) once and see which channels return plausible
- *     temperatures instead of an open-circuit reading.
- *  2. CHANNEL MODE. Each channel's measurement mode lives in a separate TYPE register
- *     block at 40000..40015, and the C4's flow both reads and writes it. If that setting
- *     lives in the OS rather than in the AIOX module's own non-volatile memory, replacing
- *     the software resets it and the RTD registers go dead. Check the TYPE block before
- *     concluding a sensor is broken.
- *
- * ALSO: this is a DIFFERENT serial port from the P-Flow meters -- the AIOX sits on the
- * board's internal link, the meters on the external RS485. Set `internalSerial` in the
- * site file. On the original card that internal port was /dev/ttyACM1, but the Cinterion
- * LTE modem also enumerates as ttyACM*, so the numbering is not stable across a rebuild.
- * Pin it with a udev rule by USB path before trusting it.
+ * Rewrite register groups to emit canonical keys instead of raw CHC_* ones.
+ * @param {Array} groups a device's `registerGroups`
+ * @param {string} [tempTag] override for the single-key temperature tag (TS devices)
+ * @returns {Array} groups with `tag`/`divider` swapped to their canonical form
  */
-const AIOX_UNIT_ID = 1;
-const AIOX_CHANNELS = 16;
-const AIOX_RTD_BASE = {
-  PT100: 41048,
-  PT1000: 41064,
-  NI1000_DIN43760: 41080,
-};
+function canonicalizeGroups(groups, tempTag) {
+  return groups.map((g) => ({
+    ...g,
+    timeseries: g.timeseries.map((e) => {
+      const { canonicalTag, canonicalDivider, divider, ...rest } = e;
+      const tag = e.tag === 'temperature' && tempTag ? tempTag : (canonicalTag || e.tag);
+      const out = { ...rest, tag };
+      if (canonicalDivider !== undefined) out.divider = canonicalDivider;
+      return out;
+    }),
+  }));
+}
+
+/**
+ * Temperature sensors -- the RESI C4's onboard AIOX analog inputs (TS1/TS2).
+ *
+ * FIRMWARE-VERIFIED MAP (decoded from RESI's production SI-BASIC program
+ * MCS.DoctorKit.instance -> MB.Handle2RTDSensors, for this exact HWID, 2026-08).
+ * This SUPERSEDES the earlier guess (unitId 1 / internal port / holding regs 41064 / x100),
+ * which came from a generic Node-RED demo and was NEVER how the field firmware read temps.
+ *
+ * The two aux RTD sensors are the ONBOARD AIOX, reached as Modbus unit 255 (the C4
+ * mainboard's own address) on the SAME external RS485 meter bus as the P-Flows -- NOT a
+ * second internal serial port. The firmware issues ONE read:
+ *
+ *   FC04 (read INPUT registers), unit 255, start address 0, count 8, signed 16-bit
+ *
+ * and unpacks the 8 registers as two INTERLEAVED sensors (slot 0 = IO01/TS1, slot 1 = IO02/TS2):
+ *
+ *   reg[0], reg[1]  = T_ACT    (instantaneous degC, value/10)  <- the temperature we publish
+ *   reg[2], reg[3]  = T_REAL   (degC, value/10)
+ *   reg[4], reg[5]  = T_AVG    (averaged degC, value/10)
+ *   reg[6], reg[7]  = T_ERRORS (raw int, non-zero = fault; NOT scaled, NOT sign-extended)
+ *
+ * So temperature degC = int16(reg[slot]) / 10  (0.1 degC resolution -- divide by 10, NOT 100).
+ * There is no sentinel/clamp for a missing sensor; validity is inferred from T_ERRORS.
+ *
+ * CHANNEL TYPING: the firmware only READS here -- it never sets the AIOX channel type. The
+ * channels must already be in RTD/resistance mode (persisted in the mainboard, or set once
+ * out-of-band). If reg[0]/reg[1] read as zero/garbage on live hardware, the channels need
+ * typing once -- see provisioning/aiox-console-probe.py (Cx console `#255,SIOTYPS:`) or the
+ * Modbus TYPE-register path; otherwise no bring-up is needed and TS1/TS2 are just another
+ * slave on the existing meter-bus connector. Confirm live with provisioning/aiox-modbus-probe.py.
+ */
+const AIOX_UNIT_ID = 255;   // C4 mainboard's own Modbus address, on the external meter bus
+const RTD_SLOTS = 2;        // slot 0 = IO01/TS1, slot 1 = IO02/TS2
+const RTD_DIVIDER = 10;     // firmware scales signed16 / 10 -> degC
 
 const TEMP_SENSOR = {
   deviceType: 'Temperature Sensor',
   unitId: AIOX_UNIT_ID,
-  channels: AIOX_CHANNELS,
-  kinds: Object.keys(AIOX_RTD_BASE),
+  slots: RTD_SLOTS,
 
   /**
-   * Register group for one RTD channel.
-   * @param {number} channel 1-based AIOX channel
-   * @param {string} kind PT100 | PT1000 | NI1000_DIN43760
+   * Register group for one aux RTD sensor slot, matching MB.Handle2RTDSensors.
+   * The T_ACT temperature for slot N is FC04 input register N (0-based).
+   * @param {number} slot 0-based sensor slot: 0 = IO01/TS1, 1 = IO02/TS2
    */
-  registerGroupsFor(channel, kind = 'PT1000') {
-    const base = AIOX_RTD_BASE[kind];
-    if (base === undefined) {
-      throw new Error(`Unknown RTD type "${kind}". Expected one of: ${Object.keys(AIOX_RTD_BASE).join(', ')}`);
-    }
-    if (!Number.isInteger(channel) || channel < 1 || channel > AIOX_CHANNELS) {
-      throw new Error(`AIOX channel must be an integer 1..${AIOX_CHANNELS}, got ${channel}`);
+  registerGroupsFor(slot) {
+    if (!Number.isInteger(slot) || slot < 0 || slot >= RTD_SLOTS) {
+      throw new Error(`TS slot must be an integer 0..${RTD_SLOTS - 1} (0=TS1/IO01, 1=TS2/IO02), got ${slot}`);
     }
     return [
       {
-        // Single 16-bit register, so word order is irrelevant here.
+        // Single 16-bit register per key, so word order is irrelevant.
         byteOrder: 'BIG',
         wordOrder: 'BIG',
         timeseries: [
+          // T_ACT instantaneous temperature. canonicalDivider keeps the /10 through
+          // canonicalizeGroups (which otherwise strips a plain `divider`).
           {
             tag: 'temperature',
             type: '16int',
-            functionCode: 3,
+            functionCode: 4,
             objectsCount: 1,
-            address: base + (channel - 1),
-            divider: 100,
+            address: slot,
+            divider: RTD_DIVIDER,
+            canonicalDivider: RTD_DIVIDER,
           },
         ],
       },
@@ -188,4 +211,4 @@ const TEMP_SENSOR = {
   },
 };
 
-module.exports = { PFLOW_D116, TEMP_SENSOR, KJ_TO_KWH, AIOX_RTD_BASE, AIOX_UNIT_ID };
+module.exports = { PFLOW_D116, TEMP_SENSOR, KJ_TO_KWH, LH_TO_M3H, AIOX_UNIT_ID, canonicalizeGroups };

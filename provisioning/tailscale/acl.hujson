@@ -1,0 +1,42 @@
+// ECO-IOT-GW Tailscale access policy (grants syntax).
+// Paste into Admin console → Access Controls. Version-controlled for review/GitOps.
+//
+// Model:
+//  - Gateways are tagged `tag:eco-gw`; each is its own node (per-device identity,
+//    individually revocable).
+//  - group:ops can reach + SSH into gateways. Gateways are NEVER a `src`, so a
+//    customer-held kit cannot reach other gateways or your infrastructure.
+//  - Telemetry to the MQTT broker goes over the SIM directly, not the tailnet.
+{
+	"groups": {
+		// Everyone who manages the fleet. Add colleagues' company SSO emails here.
+		"group:ops": ["ramadan@ecoenergygroup.com"],
+	},
+
+	"tagOwners": {
+		// Who may assign the gateway tag / mint tagged auth keys for it.
+		"tag:eco-gw": ["group:ops", "autogroup:admin"],
+	},
+
+	"grants": [
+		// Your team's own devices can reach each other (keeps your PCs/Macs connected).
+		{"src": ["autogroup:member"], "dst": ["autogroup:member"], "ip": ["*"]},
+
+		// Ops -> gateways, any port. (No grant has gateways as src => they are isolated.)
+		{"src": ["group:ops"], "dst": ["tag:eco-gw"], "ip": ["*"]},
+	],
+
+	"ssh": [
+		// Ops SSH into gateways as the `eco` service user, via Tailscale SSH
+		// (tailnet identity + this rule; no SSH keys distributed across the fleet).
+		// "accept" = connect without interactive re-auth (needed for scripted/headless
+		// access). Switch to "action":"check" if you want periodic browser re-verification
+		// for humans — but note check mode blocks non-interactive/automated SSH.
+		{
+			"action": "accept",
+			"src":    ["group:ops"],
+			"dst":    ["tag:eco-gw"],
+			"users":  ["eco"],
+		},
+	],
+}

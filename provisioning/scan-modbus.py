@@ -59,10 +59,21 @@ def decode32(regs, byte_order, word_order, as_float):
 
 
 def read_regs(client, unit, address, count):
-    try:
-        rr = client.read_holding_registers(address=address, count=count, slave=unit)
-    except Exception as exc:                      # transport-level failure
-        return None, str(exc)
+    # The per-slave keyword was renamed across pymodbus releases: `unit` (2.x),
+    # `slave` (3.0-3.8), `device_id` (3.9+). Try them in newest-first order so the
+    # scanner works regardless of which 3.x is installed on the gateway.
+    last = None
+    for kw in ("device_id", "slave", "unit"):
+        try:
+            rr = client.read_holding_registers(address=address, count=count, **{kw: unit})
+            break
+        except TypeError as exc:                  # wrong kwarg for this version
+            last = exc
+            continue
+        except Exception as exc:                  # transport-level failure
+            return None, str(exc)
+    else:
+        return None, str(last)
     if rr is None or rr.isError():
         return None, str(rr)
     return rr.registers, None
