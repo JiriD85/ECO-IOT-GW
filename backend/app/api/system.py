@@ -22,7 +22,7 @@ from ..models.schemas import (
     UpdateStatus,
     UserInfo
 )
-from ..security.auth import get_current_user
+from ..security.auth import get_current_user, get_optional_user
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -66,7 +66,7 @@ def get_cpu_temperature() -> Optional[float]:
 
 
 @router.get("/status", response_model=SystemStatus)
-async def get_system_status(user: UserInfo = Depends(get_current_user)):
+async def get_system_status(user: Optional[UserInfo] = Depends(get_optional_user)):
     """
     Get system status information.
 

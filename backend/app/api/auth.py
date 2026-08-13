@@ -15,14 +15,19 @@ from ..models.schemas import (
     TokenResponse,
     UserInfo
 )
+from fastapi.security import HTTPAuthorizationCredentials
+
 from ..security.auth import (
     authenticate_user,
     blacklist_token,
     create_tokens,
     get_current_user,
     invalidate_refresh_token,
+    resolve_user,
+    security,
     verify_refresh_token
 )
+from ..security.tailscale_identity import identity_for_request
 from ..security.rate_limiter import login_rate_limiter
 
 router = APIRouter()
@@ -158,6 +163,30 @@ async def refresh_token(data: RefreshTokenRequest):
 
     # Create new tokens
     return create_tokens(username)
+
+
+@router.get("/whoami")
+async def whoami(
+    request: Request,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)
+):
+    """
+    Report the caller's auth state without requiring authentication.
+
+    Open endpoint — used by the frontend to decide whether to show anything
+    locked or prompt for the on-site password. Over Tailscale the caller is
+    already identified by their SSO login (no prompt needed).
+    """
+    user = resolve_user(request, credentials)
+    if user is None:
+        return {"authenticated": False, "identity": None, "method": None, "role": None}
+    method = "tailscale" if identity_for_request(request) else "password"
+    return {
+        "authenticated": True,
+        "identity": user.username,
+        "method": method,
+        "role": user.role,
+    }
 
 
 @router.get(

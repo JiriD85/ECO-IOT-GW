@@ -28,6 +28,10 @@ class Settings(BaseSettings):
     JWT_REFRESH_TOKEN_EXPIRE_DAYS: int = 7
     AES_KEY: str = os.getenv("AES_KEY", "change-me-in-production-32bytes!")
     ADMIN_PASSWORD: str = os.getenv("ADMIN_PASSWORD", "admin")
+    # On-site login IS this local Linux account (verified against /etc/shadow).
+    # Provisioned per device with a random password; once it exists the insecure
+    # in-memory admin/admin fallback is dropped. See security/system_auth.py.
+    LOCAL_ADMIN_USER: str = os.getenv("LOCAL_ADMIN_USER", "ecoadmin")
 
     # Rate Limiting
     RATE_LIMIT_REQUESTS: int = 100

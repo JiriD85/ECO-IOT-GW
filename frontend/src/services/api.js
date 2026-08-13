@@ -27,8 +27,12 @@ api.interceptors.response.use(
         return api(originalRequest)
       }
 
-      // Refresh failed, redirect to login
-      window.location.href = '/login'
+      // Refresh failed. A locked action needs a login — send them to the login
+      // page and bring them back afterwards. (Open pages never hit this.)
+      if (!window.location.pathname.startsWith('/login')) {
+        const redirect = encodeURIComponent(window.location.pathname + window.location.search)
+        window.location.href = `/login?redirect=${redirect}`
+      }
     }
 
     return Promise.reject(error)
@@ -217,6 +221,12 @@ export const authApi = {
   changePassword: (currentPassword, newPassword) => api.post('/api/auth/change-password', null, {
     params: { current_password: currentPassword, new_password: newPassword }
   })
+}
+
+// Meters / connector health - read-only. Latest child-device telemetry + connector status,
+// parsed from the gateway (no direct bus access, no local editing). Editing stays in ThingsBoard.
+export const metersApi = {
+  getLatest: () => api.get('/api/meters/latest')
 }
 
 // Branding API

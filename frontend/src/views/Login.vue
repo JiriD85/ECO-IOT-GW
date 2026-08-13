@@ -62,11 +62,12 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '../services/auth'
 import { useBranding } from '../composables/useBranding'
 
 const router = useRouter()
+const route = useRoute()
 const authStore = useAuthStore()
 const { kitName, logoUrl, hasLogo, loadBranding, isLoaded } = useBranding()
 
@@ -94,7 +95,8 @@ const handleLogin = async () => {
   loading.value = false
 
   if (result.success) {
-    router.push('/dashboard')
+    const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '/dashboard'
+    router.push(redirect)
   } else {
     error.value = result.error
   }

@@ -151,10 +151,20 @@ class TerminalSession:
 
 
 async def authenticate_websocket(websocket: WebSocket) -> Optional[str]:
-    """Authenticate WebSocket connection using token from query params."""
+    """Authenticate WebSocket connection.
+
+    Over the tailnet the caller is identified by their Tailscale login (no token);
+    otherwise a valid bearer token is required via the ?token= query param.
+    """
+    from ..security.tailscale_identity import identity_for_request
+
+    identity = identity_for_request(websocket)
+    if identity:
+        return identity
+
     token = websocket.query_params.get("token")
 
-    if not token:
+    if not token or token in ("null", "undefined"):
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return None
 

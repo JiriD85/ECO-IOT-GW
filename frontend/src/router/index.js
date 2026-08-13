@@ -15,7 +15,20 @@ const routes = [
   {
     path: '/dashboard',
     name: 'Dashboard',
-    component: () => import('../views/Dashboard.vue')
+    component: () => import('../views/Dashboard.vue'),
+    meta: { open: true }
+  },
+  {
+    path: '/meters',
+    name: 'Meters',
+    component: () => import('../views/Meters.vue'),
+    meta: { open: true }
+  },
+  {
+    path: '/connector',
+    name: 'Connector',
+    component: () => import('../views/Connector.vue'),
+    meta: { open: true }
   },
   {
     path: '/docker',
@@ -143,17 +156,26 @@ const router = createRouter({
   routes
 })
 
-// Navigation guard
-router.beforeEach((to, from, next) => {
+// Navigation guard.
+//  - public routes (login) are always allowed
+//  - open routes (read-only landing pages) are always allowed, no login
+//  - locked routes require auth; over Tailscale that's satisfied automatically,
+//    otherwise we send the user to login and return them afterwards.
+router.beforeEach(async (to) => {
   const authStore = useAuthStore()
 
-  if (!to.meta.public && !authStore.isAuthenticated) {
-    next('/login')
-  } else if (to.path === '/login' && authStore.isAuthenticated) {
-    next('/dashboard')
-  } else {
-    next()
+  if (to.meta.public) {
+    if (to.path === '/login' && authStore.isAuthenticated) return '/dashboard'
+    return true
   }
+
+  // Resolve who we are (Tailscale identity or existing token) once.
+  await authStore.ensureSession()
+
+  if (to.meta.open) return true
+  if (authStore.isAuthenticated) return true
+
+  return { path: '/login', query: { redirect: to.fullPath } }
 })
 
 export default router

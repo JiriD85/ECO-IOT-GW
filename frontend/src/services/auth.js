@@ -7,7 +7,14 @@ export const useAuthStore = defineStore('auth', () => {
   const refreshToken = ref(localStorage.getItem('refreshToken') || null)
   const user = ref(null)
 
-  const isAuthenticated = computed(() => !!accessToken.value)
+  // Session identity resolved from the backend (Tailscale login or password user)
+  const identity = ref(null)
+  const authMethod = ref(null)   // 'tailscale' | 'password' | null
+  const sessionChecked = ref(false)
+  let sessionPromise = null
+
+  // Authenticated if we hold a token OR the tailnet already identifies us.
+  const isAuthenticated = computed(() => !!accessToken.value || authMethod.value === 'tailscale')
 
   const setTokens = (access, refresh) => {
     accessToken.value = access
@@ -30,6 +37,8 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       const response = await api.post('/api/auth/login', { username, password })
       setTokens(response.data.access_token, response.data.refresh_token)
+      identity.value = username
+      authMethod.value = 'password'
       await fetchUser()
       return { success: true }
     } catch (error) {
@@ -45,6 +54,43 @@ export const useAuthStore = defineStore('auth', () => {
       // Ignore errors during logout
     }
     clearTokens()
+    // Re-evaluate: over the tailnet we're still identified even without a token.
+    sessionPromise = null
+    await checkSession()
+  }
+
+  // Ask the backend who we are (open endpoint). Over Tailscale this returns our
+  // SSO login with no token; locally it reflects any bearer token we hold.
+  // Returns true only when we got a definitive answer from the server.
+  const checkSession = async () => {
+    try {
+      const res = await api.get('/api/auth/whoami', { timeout: 8000 })
+      identity.value = res.data.authenticated ? res.data.identity : null
+      authMethod.value = res.data.authenticated ? res.data.method : null
+      sessionChecked.value = true
+      return true
+    } catch (error) {
+      // Network blip (flaky tailnet/SIM): don't downgrade to anonymous here.
+      return false
+    }
+  }
+
+  // Resolve the session once, with a retry so a single dropped request over a
+  // flaky link doesn't wrongly bounce a Tailscale user to the login page.
+  const ensureSession = async () => {
+    if (sessionChecked.value) return
+    if (!sessionPromise) {
+      sessionPromise = (async () => {
+        let ok = await checkSession()
+        if (!ok) {
+          await new Promise((r) => setTimeout(r, 400))
+          ok = await checkSession()
+        }
+        // If still unresolved, allow a later navigation to try again.
+        sessionPromise = null
+      })()
+    }
+    return sessionPromise
   }
 
   const fetchUser = async () => {
@@ -83,11 +129,16 @@ export const useAuthStore = defineStore('auth', () => {
     accessToken,
     refreshToken,
     user,
+    identity,
+    authMethod,
+    sessionChecked,
     isAuthenticated,
     login,
     logout,
     fetchUser,
     refreshAccessToken,
-    clearTokens
+    clearTokens,
+    checkSession,
+    ensureSession
   }
 })

@@ -19,7 +19,7 @@ from ..models.schemas import (
     SuccessResponse,
     UserInfo
 )
-from ..security.auth import get_current_user
+from ..security.auth import get_current_user, get_optional_user
 from ..security.validators import validate_docker_compose
 from ..services.docker_service import docker_service
 
@@ -213,7 +213,7 @@ async def delete_compose(
     "/status",
     response_model=DockerStatusResponse
 )
-async def get_status(user: UserInfo = Depends(get_current_user)):
+async def get_status(user: Optional[UserInfo] = Depends(get_optional_user)):
     """
     Get Docker status and container information.
 
