@@ -12,7 +12,7 @@
         <v-card>
           <v-card-text class="text-center">
             <v-icon size="48" :color="cpuColor">mdi-cpu-64-bit</v-icon>
-            <div class="text-h4 mt-2">{{ systemStatus?.cpu_percent?.toFixed(1) || 0 }}%</div>
+            <div class="text-h4 mt-2">{{ systemStatus?.cpu_percent?.toFixed(1) ?? '—' }}%</div>
             <div class="text-caption">CPU Usage</div>
           </v-card-text>
         </v-card>
@@ -22,7 +22,7 @@
         <v-card>
           <v-card-text class="text-center">
             <v-icon size="48" :color="memoryColor">mdi-memory</v-icon>
-            <div class="text-h4 mt-2">{{ systemStatus?.memory_percent?.toFixed(1) || 0 }}%</div>
+            <div class="text-h4 mt-2">{{ systemStatus?.memory_percent?.toFixed(1) ?? '—' }}%</div>
             <div class="text-caption">Memory Usage</div>
           </v-card-text>
         </v-card>
@@ -32,7 +32,7 @@
         <v-card>
           <v-card-text class="text-center">
             <v-icon size="48" :color="diskColor">mdi-harddisk</v-icon>
-            <div class="text-h4 mt-2">{{ systemStatus?.disk_percent?.toFixed(1) || 0 }}%</div>
+            <div class="text-h4 mt-2">{{ systemStatus?.disk_percent?.toFixed(1) ?? '—' }}%</div>
             <div class="text-caption">Disk Usage</div>
           </v-card-text>
         </v-card>
@@ -57,42 +57,34 @@
           <v-card-text>
             <v-row>
               <v-col cols="6" md="3" class="text-center">
-                <v-icon size="36" :color="connectivity?.vpn ? 'success' : 'error'">
-                  {{ connectivity?.vpn ? 'mdi-vpn' : 'mdi-vpn' }}
-                </v-icon>
+                <v-icon size="36" :color="connState(connectivity?.vpn).color">mdi-vpn</v-icon>
                 <div class="mt-2">VPN</div>
-                <v-chip :color="connectivity?.vpn ? 'success' : 'error'" size="small">
-                  {{ connectivity?.vpn ? 'Connected' : 'Disconnected' }}
+                <v-chip :color="connState(connectivity?.vpn).color" size="small">
+                  {{ connState(connectivity?.vpn).label }}
                 </v-chip>
               </v-col>
 
               <v-col cols="6" md="3" class="text-center">
-                <v-icon size="36" :color="connectivity?.modem ? 'success' : 'error'">
-                  mdi-antenna
-                </v-icon>
+                <v-icon size="36" :color="connState(connectivity?.modem).color">mdi-antenna</v-icon>
                 <div class="mt-2">Modem</div>
-                <v-chip :color="connectivity?.modem ? 'success' : 'error'" size="small">
-                  {{ connectivity?.modem ? 'Connected' : 'Disconnected' }}
+                <v-chip :color="connState(connectivity?.modem).color" size="small">
+                  {{ connState(connectivity?.modem).label }}
                 </v-chip>
               </v-col>
 
               <v-col cols="6" md="3" class="text-center">
-                <v-icon size="36" :color="connectivity?.thingsboard ? 'success' : 'error'">
-                  mdi-cloud
-                </v-icon>
+                <v-icon size="36" :color="connState(connectivity?.thingsboard).color">mdi-cloud</v-icon>
                 <div class="mt-2">ThingsBoard</div>
-                <v-chip :color="connectivity?.thingsboard ? 'success' : 'error'" size="small">
-                  {{ connectivity?.thingsboard ? 'Connected' : 'Disconnected' }}
+                <v-chip :color="connState(connectivity?.thingsboard).color" size="small">
+                  {{ connState(connectivity?.thingsboard).label }}
                 </v-chip>
               </v-col>
 
               <v-col cols="6" md="3" class="text-center">
-                <v-icon size="36" :color="connectivity?.internet ? 'success' : 'error'">
-                  mdi-web
-                </v-icon>
+                <v-icon size="36" :color="connState(connectivity?.internet).color">mdi-web</v-icon>
                 <div class="mt-2">Internet</div>
-                <v-chip :color="connectivity?.internet ? 'success' : 'error'" size="small">
-                  {{ connectivity?.internet ? 'Connected' : 'Disconnected' }}
+                <v-chip :color="connState(connectivity?.internet).color" size="small">
+                  {{ connState(connectivity?.internet).label }}
                 </v-chip>
               </v-col>
             </v-row>
@@ -242,19 +234,31 @@ const formatBytes = (bytes) => {
   return `${bytes.toFixed(1)} ${units[i]}`
 }
 
-const fetchData = async () => {
-  try {
-    const [sysRes, connRes, dockerRes] = await Promise.all([
-      systemApi.getStatus(),
-      diagnosticsApi.getConnectivity(),
-      dockerApi.getStatus()
-    ])
-    systemStatus.value = sysRes.data
-    connectivity.value = connRes.data
-    containers.value = dockerRes.data.containers || []
-  } catch (error) {
-    console.error('Failed to fetch dashboard data:', error)
-  }
+// Tri-state so a tile reads "Checking…" (grey) while loading instead of a
+// misleading red "Disconnected" before the first response arrives.
+const connState = (value) => {
+  if (value === undefined || value === null) return { color: 'grey', label: 'Checking…' }
+  return value
+    ? { color: 'success', label: 'Connected' }
+    : { color: 'error', label: 'Disconnected' }
+}
+
+// Fetch each card independently so a slow check never holds up the others
+// (previously one Promise.all meant every card waited on the slowest call).
+const fetchSystem = async () => {
+  try { systemStatus.value = (await systemApi.getStatus()).data } catch (e) { /* keep last */ }
+}
+const fetchConnectivity = async () => {
+  try { connectivity.value = (await diagnosticsApi.getConnectivity()).data } catch (e) { /* keep last */ }
+}
+const fetchDocker = async () => {
+  try { containers.value = (await dockerApi.getStatus()).data.containers || [] } catch (e) { /* keep last */ }
+}
+
+const fetchData = () => {
+  fetchSystem()
+  fetchConnectivity()
+  fetchDocker()
 }
 
 onMounted(() => {
