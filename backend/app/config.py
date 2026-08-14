@@ -1,10 +1,21 @@
 """
 ECO-IOT-GW Backend Configuration
 """
+import logging
 import os
 from pathlib import Path
 from typing import Optional
 from pydantic_settings import BaseSettings
+
+logger = logging.getLogger(__name__)
+
+# The placeholder secrets shipped in the code. A real device MUST override these
+# (install.sh / provisioning/setup-secrets.sh generate per-device values into
+# /etc/eco-iot-gw/secrets.env). They are duplicated here so the boot guard below
+# can recognise "still on the shipped default" and refuse to start.
+DEFAULT_JWT_SECRET = "change-me-in-production"
+DEFAULT_AES_KEY = "change-me-in-production-32bytes!"
+DEFAULT_ADMIN_PASSWORD = "admin"
 
 
 class Settings(BaseSettings):
@@ -89,3 +100,42 @@ settings = Settings()
 def get_settings() -> Settings:
     """Get application settings."""
     return settings
+
+
+def insecure_default_secrets() -> list[str]:
+    """Names of security secrets still set to the shipped placeholder value."""
+    bad = []
+    if settings.JWT_SECRET == DEFAULT_JWT_SECRET:
+        bad.append("JWT_SECRET")
+    if settings.AES_KEY == DEFAULT_AES_KEY:
+        bad.append("AES_KEY")
+    return bad
+
+
+def is_provisioned_device() -> bool:
+    """True on a real gateway. The production config dir only exists on an
+    installed device; dev laptops / CI don't have it, so defaults stay usable
+    there without tripping the boot guard."""
+    return settings.CONFIG_DIR.is_dir()
+
+
+def assert_secure_secrets() -> None:
+    """Fail closed if a provisioned device is still running on the shipped
+    default JWT_SECRET / AES_KEY.
+
+    A shared, source-controlled signing key means anyone with the repo can forge
+    a valid session token for the device, so this is a hard stop rather than a
+    warning. Generate real secrets with `sudo provisioning/setup-secrets.sh`
+    (or a full install.sh run). Set ECO_ALLOW_DEFAULT_SECRETS=1 to bypass on a
+    throwaway dev box that happens to have /etc/eco-iot-gw."""
+    if os.getenv("ECO_ALLOW_DEFAULT_SECRETS") == "1":
+        return
+    bad = insecure_default_secrets()
+    if bad and is_provisioned_device():
+        names = ", ".join(bad)
+        raise RuntimeError(
+            f"Refusing to start: {names} still set to the shipped default. "
+            f"Run `sudo provisioning/setup-secrets.sh` to generate per-device "
+            f"secrets in {settings.CONFIG_DIR}/secrets.env, then restart. "
+            f"(Override on a dev box with ECO_ALLOW_DEFAULT_SECRETS=1.)"
+        )

@@ -31,6 +31,16 @@ async def lifespan(app: FastAPI):
     # Startup
     logger.info(f"Starting {settings.APP_NAME} v{settings.APP_VERSION}")
 
+    # Refuse to run a provisioned device on the shipped default secrets: a
+    # shared, source-controlled JWT/AES key lets anyone with the repo forge a
+    # session token. Fail closed and loud (systemd will show the reason).
+    from .config import assert_secure_secrets
+    try:
+        assert_secure_secrets()
+    except RuntimeError as e:
+        logger.critical(str(e))
+        raise
+
     # Initialize services
     try:
         from .services.audit_service import audit_service
