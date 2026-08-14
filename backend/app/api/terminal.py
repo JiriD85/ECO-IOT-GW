@@ -3,6 +3,7 @@ ECO-IOT-GW Terminal API
 WebSocket-based interactive shell
 """
 import asyncio
+import fcntl
 import logging
 import os
 import pty
@@ -47,7 +48,15 @@ class TerminalSession:
             os.close(self.master_fd)
             os.setsid()
 
-            # Set controlling terminal
+            # Claim the slave PTY as this session's controlling terminal, so the
+            # shell gets job control (Ctrl-C, fg/bg, vim/less). Without this bash
+            # warns "cannot set terminal process group / no job control".
+            try:
+                fcntl.ioctl(self.slave_fd, termios.TIOCSCTTY, 0)
+            except OSError:
+                pass
+
+            # Wire stdin/stdout/stderr to the PTY.
             os.dup2(self.slave_fd, 0)
             os.dup2(self.slave_fd, 1)
             os.dup2(self.slave_fd, 2)
@@ -55,19 +64,73 @@ class TerminalSession:
             if self.slave_fd > 2:
                 os.close(self.slave_fd)
 
+            # Drop to the per-device operator account so the shell is NOT root.
+            # The backend runs as root (needed to read the tb-gateway container's
+            # sockets, docker, etc.), but the interactive host shell must run as
+            # the local `ecoadmin` account -- the same one used to log in on-site,
+            # regardless of whether this session authenticated via Tailscale or a
+            # password. Returns the target's home/shell for the env below.
+            home, shell, target_user = self._drop_privileges()
+
             # Execute shell
             env = os.environ.copy()
             env['TERM'] = 'xterm-256color'
-            env['USER'] = self.username
+            env['USER'] = target_user
+            env['LOGNAME'] = target_user
+            if home:
+                env['HOME'] = home
+                try:
+                    os.chdir(home)
+                except OSError:
+                    pass
 
+            shell = shell or '/bin/bash'
             try:
-                os.execvpe('/bin/bash', ['/bin/bash', '-l'], env)
+                os.execvpe(shell, [shell, '-l'], env)
             except Exception:
                 os.execvpe('/bin/sh', ['/bin/sh'], env)
         else:
             # Parent process
             os.close(self.slave_fd)
             self.running = True
+
+    def _drop_privileges(self):
+        """If running as root, drop the forked child to the local operator
+        account (settings.LOCAL_ADMIN_USER, e.g. ``ecoadmin``) so the terminal is
+        not a root shell. No-op when already unprivileged, on a non-POSIX/dev box,
+        or if the account doesn't exist. Returns (home, shell, effective_user).
+
+        Runs in the child after setsid()/dup2() and before exec. If dropping is
+        attempted but fails, the child exits rather than fall through as root.
+        """
+        fallback = self.username or 'root'
+        try:
+            import pwd
+            from ..config import settings
+        except Exception:
+            return None, None, fallback
+
+        try:
+            info = pwd.getpwnam(settings.LOCAL_ADMIN_USER)
+        except KeyError:
+            # e.g. a dev box without the ecoadmin account -- keep current user.
+            return None, None, fallback
+
+        target = settings.LOCAL_ADMIN_USER
+        try:
+            # Only drop when we are actually root and the target is not root.
+            if os.geteuid() == 0 and info.pw_uid != 0:
+                os.setgid(info.pw_gid)
+                try:
+                    os.initgroups(target, info.pw_gid)
+                except Exception:
+                    pass
+                os.setuid(info.pw_uid)
+        except Exception:
+            # Never hand out a root shell if the drop failed.
+            os._exit(1)
+
+        return info.pw_dir, info.pw_shell, target
 
     async def read_output(self):
         """Read output from PTY and send to WebSocket."""
