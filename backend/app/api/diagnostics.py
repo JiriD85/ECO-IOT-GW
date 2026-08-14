@@ -15,7 +15,7 @@ from ..models.schemas import (
     ModbusValue,
     UserInfo
 )
-from ..security.auth import get_current_user, get_optional_user
+from ..security.auth import get_current_user
 from ..services.gateway_log_service import gateway_log_service
 
 logger = logging.getLogger(__name__)
@@ -23,7 +23,7 @@ router = APIRouter()
 
 
 @router.get("/connectivity", response_model=ConnectivityStatus)
-def get_connectivity_status(user: Optional[UserInfo] = Depends(get_optional_user)):
+def get_connectivity_status(user: UserInfo = Depends(get_current_user)):
     """
     Get overall connectivity status.
 
@@ -63,7 +63,7 @@ def get_connectivity_status(user: Optional[UserInfo] = Depends(get_optional_user
 
 @router.get("/modbus", response_model=List[ModbusValue])
 async def get_modbus_values(
-    user: Optional[UserInfo] = Depends(get_optional_user),
+    user: UserInfo = Depends(get_current_user),
     device: Optional[str] = None,
     limit: int = Query(default=100, ge=1, le=1000)
 ):
@@ -111,7 +111,7 @@ async def poll_modbus_register(
 
 @router.get("/gateway/logs", response_model=List[GatewayLogEntry])
 async def get_gateway_logs(
-    user: Optional[UserInfo] = Depends(get_optional_user),
+    user: UserInfo = Depends(get_current_user),
     level: Optional[str] = None,
     connector: Optional[str] = None,
     limit: int = Query(default=100, ge=1, le=1000),
@@ -176,7 +176,7 @@ async def get_gateway_connectors(user: UserInfo = Depends(get_current_user)):
 
 
 @router.get("/gateway/status")
-async def get_gateway_status(user: Optional[UserInfo] = Depends(get_optional_user)):
+async def get_gateway_status(user: UserInfo = Depends(get_current_user)):
     """
     Get ThingsBoard Gateway container status.
     """

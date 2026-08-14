@@ -15,20 +15,17 @@ const routes = [
   {
     path: '/dashboard',
     name: 'Dashboard',
-    component: () => import('../views/Dashboard.vue'),
-    meta: { open: true }
+    component: () => import('../views/Dashboard.vue')
   },
   {
     path: '/meters',
     name: 'Meters',
-    component: () => import('../views/Meters.vue'),
-    meta: { open: true }
+    component: () => import('../views/Meters.vue')
   },
   {
     path: '/connector',
     name: 'Connector',
-    component: () => import('../views/Connector.vue'),
-    meta: { open: true }
+    component: () => import('../views/Connector.vue')
   },
   {
     path: '/docker',
@@ -158,9 +155,10 @@ const router = createRouter({
 
 // Navigation guard.
 //  - public routes (login) are always allowed
-//  - open routes (read-only landing pages) are always allowed, no login
-//  - locked routes require auth; over Tailscale that's satisfied automatically,
-//    otherwise we send the user to login and return them afterwards.
+//  - every other route requires auth (including the read-only Dashboard/Meters/
+//    Connector pages — NIS-2: no anonymous telemetry). Over Tailscale that's
+//    satisfied automatically by the caller's SSO identity, so there's no prompt;
+//    on-site over the cable it sends the user to the ecoadmin login first.
 router.beforeEach(async (to) => {
   const authStore = useAuthStore()
 
@@ -172,7 +170,6 @@ router.beforeEach(async (to) => {
   // Resolve who we are (Tailscale identity or existing token) once.
   await authStore.ensureSession()
 
-  if (to.meta.open) return true
   if (authStore.isAuthenticated) return true
 
   return { path: '/login', query: { redirect: to.fullPath } }

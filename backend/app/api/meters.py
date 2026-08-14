@@ -8,10 +8,8 @@ import logging
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
-from typing import Optional
-
 from ..models.schemas import UserInfo
-from ..security.auth import get_optional_user
+from ..security.auth import get_current_user
 from ..services.meters_service import meters_service
 
 logger = logging.getLogger(__name__)
@@ -19,7 +17,7 @@ router = APIRouter()
 
 
 @router.get("/latest")
-async def get_latest(user: Optional[UserInfo] = Depends(get_optional_user)):
+async def get_latest(user: UserInfo = Depends(get_current_user)):
     """
     Latest values reported by each child device (P-Flow meters, AIOX temperatures)
     plus a connector health summary.

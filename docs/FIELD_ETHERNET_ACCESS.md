@@ -8,7 +8,7 @@ There are two ways to reach the same console:
 | Path | Who | Auth |
 |------|-----|------|
 | **Tailscale** (remote) | Office / support, from anywhere | Your Tailscale SSO — no password prompt |
-| **Ethernet** (on-site) | Field engineer, standing at the device | Read-only with no login; edits need the device's `ecoadmin` password |
+| **Ethernet** (on-site) | Field engineer, standing at the device | The device's `ecoadmin` login — required for **every** page, including meter readings |
 
 This document covers the **Ethernet** path.
 
@@ -27,14 +27,14 @@ standard Ethernet cable. Nothing else.
      provisioning sheet (e.g. `eco-gw-bench`), **or**
    - **`http://10.10.10.1/`** — the fixed address, the **same on every gateway**.
      Use this if the `.local` name doesn't resolve.
-4. The **Dashboard, Meters and Connector** pages open immediately — **read-only,
-   no login required.** This is enough to check meter readings, connector health,
-   and system status.
-5. **To change anything** (System, ThingsBoard, VPN, Network, Terminal…), the page
-   sends you to a login:
+4. The page sends you to a **login** (on-site, every page requires it — meter
+   readings included):
    - **Username:** `ecoadmin`
    - **Password:** the device's password from the **provisioning secrets sheet**
      (unique per gateway — it is *not* the same across devices).
+5. After login the **Dashboard, Meters, Connector** and all configuration pages
+   are available — check meter readings, connector health, system status, and
+   make changes.
 6. The built-in **Terminal** gives you a host shell as `ecoadmin` using the same
    login — no second password.
 
@@ -54,18 +54,22 @@ standard Ethernet cable. Nothing else.
 
 ---
 
-## What "read-only vs locked" means
+## How access is decided
 
 The backend classifies every request by where it came from:
 
 - **Over Tailscale** (source IP in `100.64.0.0/10` / `fd7a:115c:a1e0::/48`): the
-  tailnet already authenticated you → full access, no prompt.
-- **Over Ethernet** (any other IP, e.g. `10.10.10.x`): treated as **on-site**.
-  A safe allowlist of read-only pages is open; everything that changes state or
-  exposes secrets requires the `ecoadmin` login.
+  tailnet already authenticated you → full access, no prompt. Requests carry the
+  caller's SSO login, so actions are attributable to a person.
+- **Over Ethernet** (any other IP, e.g. `10.10.10.x`): treated as **on-site** and
+  **not pre-authenticated** — every page, telemetry included, requires the
+  `ecoadmin` login.
 
-Open (no login) endpoints: dashboard/system status, docker status, meter readings,
-connector/gateway status and logs. Everything else is locked.
+There is **no anonymous read access** any more. The only endpoint reachable
+without auth is `whoami` (it just reports whether you're logged in, so the UI
+knows whether to show the login screen). This was tightened for NIS-2: leaving
+meter data, connector config and gateway logs readable to anyone who plugs in a
+cable was unauthenticated attack surface.
 
 > **Why the on-site subnet is `10.x` and not `100.x`:** the backend treats
 > `100.64.0.0/10` as "you're on Tailscale, skip the login." An on-site subnet in
