@@ -91,6 +91,15 @@ Applied by [`provisioning/setup-direct-ethernet.sh`](../provisioning/setup-direc
   resolves from the engineer's laptop.
 - **nginx** listens on `:80` on all interfaces; the console is served the same way
   over Ethernet as over Tailscale.
+- **No internet passthrough.** `shared` mode would also NAT the device's SIM out to
+  the cable, so a plugged-in laptop would pull *metered LTE data* through the
+  gateway. The setup script blocks this (drops all forwarding from `eth0`, kept
+  across reboots by an NM dispatcher). The laptop gets an address and the console,
+  but **not** internet — the engineer keeps their own uplink (Wi-Fi) for that.
+
+> **Engineer note:** while the cable is plugged in, your laptop will show the wired
+> connection as "No internet" — that's intended. Keep Wi-Fi on for your own
+> internet; the cable is only for reaching the gateway.
 
 To (re)apply on a device:
 

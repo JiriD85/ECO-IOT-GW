@@ -35,7 +35,7 @@
     "bytesize": 8,
     "parity": "N",
     "stopbits": 1,
-    "timeout": 35
+    "timeout": 2
   },
 
   "internalSerial": {
@@ -44,7 +44,7 @@
     "bytesize": 8,
     "parity": "N",
     "stopbits": 1,
-    "timeout": 35
+    "timeout": 2
   },
 
   "pflows": [

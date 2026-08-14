@@ -47,6 +47,28 @@ echo "== ensuring mDNS (avahi) is running so <hostname>.local resolves =="
 systemctl enable --now avahi-daemon >/dev/null 2>&1 || \
   echo "  (avahi-daemon not present — install 'avahi-daemon' for the .local name; the fixed IP still works)"
 
+echo "== blocking internet passthrough (device must NOT NAT its SIM to the cable) =="
+# NM's ipv4.method=shared also enables NAT eth0->WAN, which would let a plugged-in
+# laptop pull metered LTE data through the Pi. We want the address + console, not a
+# router. Drop all forwarding FROM eth0 (console access is INPUT, so it stays up),
+# and reinstall the rule on every eth0 event via an NM dispatcher (shared mode
+# re-creates its own rules on each activation).
+iptables -C FORWARD -i "$IFACE" -j DROP 2>/dev/null || iptables -I FORWARD -i "$IFACE" -j DROP
+DISP=/etc/NetworkManager/dispatcher.d/50-eth0-no-inet-forward.sh
+cat > "$DISP" <<'SCR'
+#!/bin/bash
+IFACE="$1"; ACTION="$2"
+if [ "$IFACE" = "eth0" ]; then
+  case "$ACTION" in
+    up|dhcp4-change|connectivity-change)
+      iptables -C FORWARD -i eth0 -j DROP 2>/dev/null || iptables -I FORWARD -i eth0 -j DROP
+      ;;
+  esac
+fi
+SCR
+chmod 755 "$DISP"
+echo "  forward-block rule + dispatcher installed"
+
 echo "== bringing the connection up =="
 nmcli con up "$CON"
 

@@ -90,11 +90,17 @@ function expand(site, device, registerGroups, deviceType, serial) {
     bytesize: serial.bytesize ?? 8,
     parity: serial.parity ?? 'N',
     strict: true,
-    timeout: serial.timeout ?? 35,
+    // Short per-slave timeout: a missing address must fail fast (~2s), not stall
+    // the shared RS485 bus for 35s and desync the real meters' frames. The 35s
+    // that used to live here was never a RESI value -- the RESI stack used ~1s.
+    // See memory: modbus-connector-tuning.
+    timeout: serial.timeout ?? 2,
     byteOrder: group.byteOrder,
     wordOrder: group.wordOrder,
-    retries: true,
-    retryOnEmpty: true,
+    // One cheap retry recovers a single noisy/CRC frame within the cycle;
+    // do NOT retry on empty (an empty address = no meter, retrying just stalls).
+    retries: serial.retries ?? 1,
+    retryOnEmpty: false,
     retryOnInvalid: true,
     pollPeriod: device.pollPeriod ?? site.pollPeriod ?? 30000,
     unitId: device.unitId,
