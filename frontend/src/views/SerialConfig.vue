@@ -4,7 +4,7 @@
         <v-card>
           <v-card-title>Serial Port Settings</v-card-title>
           <v-card-text>
-            <v-form ref="form">
+            <v-form ref="form" class="serial-form">
               <v-select
                 v-model="config.port"
                 :items="ports"
@@ -194,3 +194,15 @@ onMounted(() => {
   fetchConfig()
 })
 </script>
+
+<style scoped>
+/* The global compact + hideDetails defaults collapse the space between stacked
+   outlined fields, so their floating labels overlap the neighbouring field.
+   Give each field breathing room. */
+.serial-form :deep(.v-input) {
+  margin-bottom: 16px;
+}
+.serial-form :deep(.v-input:last-child) {
+  margin-bottom: 0;
+}
+</style>

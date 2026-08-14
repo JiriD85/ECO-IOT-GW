@@ -70,11 +70,11 @@
     </v-main>
 
     <v-snackbar
-      v-model="snackbar.show"
-      :color="snackbar.color"
+      v-model="snackbarShow"
+      :color="snackbarColor"
       :timeout="3000"
     >
-      {{ snackbar.text }}
+      {{ snackbarText }}
     </v-snackbar>
   </v-app>
 </template>
@@ -89,7 +89,10 @@ import { useBranding } from './composables/useBranding'
 const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
-const snackbar = useSnackbar()
+// Destructure so the template unwraps these refs. Using `snackbar.show`/`.color`
+// (refs nested in a plain object) does NOT auto-unwrap -> the snackbar stayed
+// permanently visible and its color rendered as bg-[object Object].
+const { show: snackbarShow, text: snackbarText, color: snackbarColor } = useSnackbar()
 const { kitName, logoUrl, hasLogo, loadBranding, toggleTheme, isDark } = useBranding()
 
 const drawer = ref(true)
