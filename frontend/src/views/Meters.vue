@@ -44,10 +44,16 @@
               <span class="mono">{{ d.name }}</span> · unit {{ d.address }} · {{ d.model }}
             </v-card-subtitle>
             <template #append>
-              <v-chip :color="statusColor(d.status)" size="small" variant="tonal">
-                <v-icon start size="x-small">{{ statusIcon(d.status) }}</v-icon>
-                {{ statusLabel(d.status) }}
-              </v-chip>
+              <div class="d-flex align-center" style="gap:6px">
+                <v-chip :color="linkColor(d)" size="small" variant="flat">
+                  <v-icon start size="x-small">{{ linkIcon(d) }}</v-icon>
+                  {{ linkLabel(d) }}
+                </v-chip>
+                <v-chip :color="statusColor(d.status)" size="small" variant="tonal">
+                  <v-icon start size="x-small">{{ statusIcon(d.status) }}</v-icon>
+                  {{ statusLabel(d.status) }}
+                </v-chip>
+              </div>
             </template>
           </v-card-item>
           <v-card-text>
@@ -80,7 +86,7 @@
       >
         <div class="d-flex align-center justify-space-between">
           <div class="text-subtitle-2">{{ t.label }}</div>
-          <v-chip :color="statusColor(t.status)" size="x-small" variant="tonal">{{ statusLabel(t.status) }}</v-chip>
+          <v-chip :color="linkColor(t)" size="x-small" variant="flat">{{ linkLabel(t) }}</v-chip>
         </div>
         <div class="temp-val mono">
           {{ fmt(tempValue(t)) }}<small v-if="tempValue(t) !== null">°C</small>
@@ -119,12 +125,10 @@ const temps = computed(() => devices.value.filter(d => d.role === 'temperature')
 
 const summary = computed(() => {
   if (!devices.value.length) return null
-  const ok = devices.value.filter(d => d.status === 'ok').length
-  const stale = devices.value.filter(d => d.status === 'stale').length
-  const err = devices.value.filter(d => d.status === 'error').length
-  if (err) return { color: 'error', icon: 'mdi-alert-circle', text: `${ok} ok · ${err} error` }
-  if (stale) return { color: 'warning', icon: 'mdi-clock-alert', text: `${ok} ok · ${stale} stale` }
-  return { color: 'success', icon: 'mdi-check-circle', text: `${ok} reporting` }
+  const conn = devices.value.filter(d => d.connected).length
+  const disc = devices.value.length - conn
+  if (disc) return { color: 'warning', icon: 'mdi-lan-disconnect', text: `${conn} connected · ${disc} disconnected` }
+  return { color: 'success', icon: 'mdi-lan-connect', text: `${conn} connected` }
 })
 
 const fmt = (v) => {
@@ -134,6 +138,10 @@ const fmt = (v) => {
 }
 const prettyTag = (tag) => (tag || '').replace(/_(m3h|m3|ms|kWh|C|exp)$/i, '').replace(/_/g, ' ')
 const tempValue = (t) => (t.readings && t.readings.length ? t.readings[0].value : null)
+
+const linkColor = (d) => ({ connected: 'success', disconnected: 'error', pending: 'grey' }[d.link] || 'grey')
+const linkLabel = (d) => ({ connected: 'Connected', disconnected: 'Disconnected', pending: 'Pending' }[d.link] || 'Pending')
+const linkIcon = (d) => ({ connected: 'mdi-lan-connect', disconnected: 'mdi-lan-disconnect', pending: 'mdi-lan-pending' }[d.link] || 'mdi-lan-pending')
 
 const statusColor = (s) => ({ ok: 'success', stale: 'warning', error: 'error', no_report: 'grey' }[s] || 'grey')
 const statusIcon = (s) => ({ ok: 'mdi-check-circle', stale: 'mdi-clock-alert', error: 'mdi-alert-circle', no_report: 'mdi-minus-circle-outline' }[s] || 'mdi-help-circle')

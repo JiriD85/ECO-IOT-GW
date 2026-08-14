@@ -19,6 +19,7 @@ up from config, just without fresh values.
 """
 import json
 import logging
+import os
 import re
 import struct
 from datetime import datetime, timezone
@@ -31,8 +32,16 @@ logger = logging.getLogger(__name__)
 
 # A device's newest value older than this is considered stale (poll period is 60s).
 STALE_SECONDS = 180
+# A device's Modbus link state reflects its most recent poll within this window:
+# a real answer -> connected, a timeout -> disconnected, nothing seen -> pending.
+# Must exceed the 60s poll period so a device doesn't flap between its own polls.
+ANSWER_WINDOW = 150
 # How many recent gateway log lines to scan (one 60s cycle is a few hundred DEBUG lines).
 LOG_LINES = 8000
+# Bytes to read from the tail of the container's live json-file log. `docker logs
+# --tail`/`--since` return a stale pre-rotation slice on this host, so we read the
+# active log file directly; ~3 MB comfortably covers several recent poll cycles.
+LOG_READ_BYTES = 3_000_000
 
 # unit hints derived from a tag's suffix, for display only
 _UNIT_SUFFIX = [
@@ -94,11 +103,10 @@ class MetersService:
                         "device": name, **desc,
                     }
 
-        # Drop default/template slaves: when the gateway reports its connected
-        # devices, keep only those (excludes tb-gateway's shipped example slaves).
-        if disconnected:
-            devices = {n: d for n, d in devices.items() if n in disconnected}
-
+        # Show every device the active connector defines (so a configured-but-
+        # never-connected meter appears as Disconnected instead of vanishing).
+        # Template/example slaves are already excluded by _connector_files, which
+        # only loads the connectors the gateway actually runs.
         values, last_seen, failed = self._parse_logs(container, regmap)
 
         now = datetime.now(timezone.utc)
@@ -146,6 +154,19 @@ class MetersService:
         return self._fallback_config_dir
 
     def _connector_files(self, config_dir: Path) -> List[Path]:
+        """Config files of the connectors the gateway ACTUALLY loads, from
+        tb_gateway.json's `connectors` list -- so example/template connector files
+        sitting in the config dir (and their placeholder devices) are ignored.
+        Falls back to all *.json if tb_gateway.json can't be read."""
+        try:
+            with open(config_dir / "tb_gateway.json") as f:
+                conns = json.load(f).get("connectors", [])
+            files = [config_dir / c["configuration"] for c in conns if c.get("configuration")]
+            files = [p for p in files if p.exists()]
+            if files:
+                return files
+        except Exception:
+            pass
         try:
             return sorted(p for p in config_dir.glob("*.json"))
         except Exception:
@@ -212,16 +233,51 @@ class MetersService:
 
     # ---- log parsing / decode -----------------------------------------------
 
+    def _read_recent_logs(self, container) -> str:
+        """Return recent gateway log text, newest-inclusive.
+
+        Reads the container's live json-file log directly: on this host
+        ``container.logs(tail=N)`` returns a stale pre-rotation slice (misses the
+        newest hour) and ``--since`` returns nothing, so neither is reliable. The
+        active ``*-json.log`` file always has the freshest lines. Each line is a
+        ``{"log": "...", ...}`` record; we concatenate the ``log`` fields. Falls
+        back to the SDK ``logs()`` if the file can't be read.
+        """
+        try:
+            log_path = (container.attrs or {}).get("LogPath")
+            if log_path and os.path.exists(log_path):
+                with open(log_path, "rb") as f:
+                    try:
+                        f.seek(-LOG_READ_BYTES, os.SEEK_END)
+                    except OSError:
+                        f.seek(0)
+                    raw = f.read()
+                lines = []
+                for bline in raw.split(b"\n"):
+                    if not bline.strip():
+                        continue
+                    try:
+                        lines.append(json.loads(bline).get("log", ""))
+                    except Exception:
+                        continue
+                if lines:
+                    return "".join(lines)
+        except Exception as e:
+            logger.debug(f"direct log-file read failed, falling back to docker logs: {e}")
+        try:
+            return container.logs(tail=LOG_LINES).decode("utf-8", "replace")
+        except Exception as e:
+            logger.warning(f"reading gateway logs failed: {e}")
+            return ""
+
     def _parse_logs(self, container, regmap):
         values: Dict[Tuple[int, int, int], float] = {}
         last_seen: Dict[str, datetime] = {}
         failed: Dict[str, datetime] = {}
         if not container:
             return values, last_seen, failed
-        try:
-            text = container.logs(tail=LOG_LINES).decode("utf-8", "replace")
-        except Exception as e:
-            logger.warning(f"reading gateway logs failed: {e}")
+        text = self._read_recent_logs(container)
+        if not text:
             return values, last_seen, failed
 
         pending: Optional[Tuple[int, int]] = None  # (fc, address) from last "Reading" line
@@ -319,6 +375,24 @@ class MetersService:
         elif fail:
             status = "error"
 
+        # Modbus link state = the RESULT OF THIS UNIT'S MOST RECENT POLL, not the
+        # gateway's sticky connected-list (which stays "connected" long after a
+        # unit stops answering) and not a mere "seen once". Within ANSWER_WINDOW:
+        # a real answer that is newer than any timeout -> connected; a timeout that
+        # is newer than any answer -> disconnected; nothing recent -> pending.
+        s_recent = bool(seen and (now - seen).total_seconds() <= ANSWER_WINDOW)
+        f_recent = bool(fail and (now - fail).total_seconds() <= ANSWER_WINDOW)
+        if s_recent and (not fail or seen >= fail):
+            link = "connected"
+        elif f_recent and (not seen or fail > seen):
+            link = "disconnected"
+        elif s_recent:
+            link = "connected"
+        elif f_recent:
+            link = "disconnected"
+        else:
+            link = "pending"
+
         return {
             "key": suffix,
             "name": name,
@@ -327,6 +401,8 @@ class MetersService:
             "model": dev["model"],
             "address": dev["address"],
             "configured": True,
+            "link": link,
+            "connected": link == "connected",
             "status": status,
             "last_seen": seen.isoformat() if seen else None,
             "readings": readings,
