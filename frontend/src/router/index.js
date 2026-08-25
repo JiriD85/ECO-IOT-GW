@@ -74,12 +74,6 @@ const routes = [
         name: 'VPN',
         component: () => import('../views/VpnConfig.vue'),
         meta: { tabLabel: 'VPN', tabIcon: 'mdi-vpn' }
-      },
-      {
-        path: 'wifi',
-        name: 'WiFi',
-        component: () => import('../views/WifiConfig.vue'),
-        meta: { tabLabel: 'WiFi AP', tabIcon: 'mdi-wifi' }
       }
     ]
   },

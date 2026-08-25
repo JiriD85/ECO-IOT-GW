@@ -94,15 +94,6 @@ export const serialApi = {
   testPort: () => api.post('/api/serial/test')
 }
 
-export const wifiApi = {
-  getStatus: () => api.get('/api/wifi/ap/status'),
-  getConfig: () => api.get('/api/wifi/ap/config'),
-  setConfig: (config) => api.put('/api/wifi/ap/config', config),
-  start: () => api.post('/api/wifi/ap/start'),
-  stop: () => api.post('/api/wifi/ap/stop'),
-  getClients: () => api.get('/api/wifi/ap/clients')
-}
-
 export const systemApi = {
   getStatus: () => api.get('/api/system/status'),
   reboot: (delay = 0) => api.post('/api/system/reboot', { delay_seconds: delay }),

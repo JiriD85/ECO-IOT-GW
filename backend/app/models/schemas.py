@@ -167,25 +167,6 @@ class SerialConfig(BaseModel):
         return v
 
 
-# =============================================================================
-# WiFi AP Models
-# =============================================================================
-
-class WiFiAPStatus(BaseModel):
-    """WiFi AP status model."""
-    active: bool
-    ssid: Optional[str] = None
-    channel: Optional[int] = None
-    clients_connected: int = 0
-
-
-class WiFiAPConfig(BaseModel):
-    """WiFi AP configuration model."""
-    ssid: str = Field(..., min_length=1, max_length=32)
-    password: str = Field(..., min_length=8, max_length=63)
-    channel: int = Field(default=6, ge=1, le=13)
-    hidden: bool = False
-
 
 # =============================================================================
 # Branding Models
@@ -195,7 +176,6 @@ class BrandingConfig(BaseModel):
     """Branding configuration."""
     kit_name: str = Field(default="ECO-IOT-GW", max_length=32, description="Kit identifier")
     theme: str = Field(default="light", pattern="^(light|dark)$")
-    update_wifi_ssid: bool = Field(default=False, description="Also update WiFi AP SSID")
 
 
 class BrandingStatus(BaseModel):
@@ -204,7 +184,6 @@ class BrandingStatus(BaseModel):
     theme: str
     has_logo: bool = False
     has_favicon: bool = False
-    wifi_ssid_synced: bool = False
 
 
 # =============================================================================

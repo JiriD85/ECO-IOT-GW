@@ -154,13 +154,12 @@ const actionTypes = [
   'upload_compose', 'compose_up', 'compose_down',
   'vpn_connect', 'vpn_disconnect', 'upload_vpn_config',
   'modem_connect', 'modem_disconnect', 'modem_reset',
-  'set_serial_config', 'set_wifi_config',
-  'start_wifi_ap', 'stop_wifi_ap',
+  'set_serial_config',
   'system_reboot', 'system_shutdown', 'system_update'
 ]
 
 const resourceTypes = [
-  'auth', 'docker', 'vpn', 'modem', 'serial', 'wifi', 'system', 'watchdog'
+  'auth', 'docker', 'vpn', 'modem', 'serial', 'system', 'watchdog'
 ]
 
 const tableHeaders = [

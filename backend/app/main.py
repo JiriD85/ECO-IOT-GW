@@ -11,7 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from .config import settings
-from .api import auth, docker, terminal, vpn, modem, serial, wifi, system, diagnostics, watchdog, audit, thingsboard, ntp, backup, network, sms, branding, meters
+from .api import auth, docker, terminal, vpn, modem, serial, system, diagnostics, watchdog, audit, thingsboard, ntp, backup, network, sms, branding, meters
 
 # Configure logging
 logging.basicConfig(
@@ -156,7 +156,6 @@ app.include_router(terminal.router, prefix="/api/terminal", tags=["Terminal"])
 app.include_router(vpn.router, prefix="/api/vpn", tags=["VPN"])
 app.include_router(modem.router, prefix="/api/modem", tags=["Modem"])
 app.include_router(serial.router, prefix="/api/serial", tags=["Serial"])
-app.include_router(wifi.router, prefix="/api/wifi", tags=["WiFi"])
 app.include_router(system.router, prefix="/api/system", tags=["System"])
 app.include_router(diagnostics.router, prefix="/api/diagnostics", tags=["Diagnostics"])
 app.include_router(watchdog.router, prefix="/api/watchdog", tags=["Watchdog"])
@@ -190,3 +189,43 @@ async def api_root():
         "version": settings.APP_VERSION,
         "docs": "/api/docs" if settings.DEBUG else None
     }
+
+
+# ---------------------------------------------------------------------------
+# Static frontend (single-process deploy: FastAPI serves the built Vue SPA
+# directly, no nginx). Enabled only when a build directory is present, so dev
+# (uvicorn --reload without a build) is unaffected. Path is overridable via
+# ECO_FRONTEND_DIST; default matches the lean provisioning layout.
+#
+# The peer IP used for tailnet-vs-onsite auth (security/tailscale_identity.py)
+# falls back to request.client.host when there is no X-Real-IP header, so
+# serving directly (socket peer = real client) classifies correctly without a
+# reverse proxy: 100.64/10 -> tailnet (trusted), 10.10.10.x -> on-site (login).
+# ---------------------------------------------------------------------------
+import os as _os
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
+
+_FRONTEND_DIST = _os.environ.get("ECO_FRONTEND_DIST", "/opt/eco/webui/dist")
+if _os.path.isdir(_FRONTEND_DIST):
+    _assets = _os.path.join(_FRONTEND_DIST, "assets")
+    if _os.path.isdir(_assets):
+        app.mount("/assets", StaticFiles(directory=_assets), name="assets")
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    async def spa_fallback(full_path: str):
+        """Serve real files; fall back to index.html for client-side routes.
+
+        Registered last, so every /api/* route already matched. API paths that
+        reach here are genuine 404s and keep returning JSON, not the SPA shell.
+        """
+        if full_path.startswith("api"):
+            return JSONResponse(status_code=404, content={"detail": "Not Found"})
+        candidate = _os.path.join(_FRONTEND_DIST, full_path)
+        if full_path and _os.path.isfile(candidate):
+            return FileResponse(candidate)
+        return FileResponse(_os.path.join(_FRONTEND_DIST, "index.html"))
+
+    logger.info(f"Serving frontend from {_FRONTEND_DIST}")
+else:
+    logger.info(f"No frontend build at {_FRONTEND_DIST}; API-only mode")

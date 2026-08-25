@@ -209,23 +209,6 @@ install_modem_tools() {
     log_info "Modem tools installed"
 }
 
-# Install WLAN AP tools
-install_wifi_ap_tools() {
-    log_step "Installing WLAN AP tools..."
-    apt-get install -y \
-        hostapd \
-        dnsmasq \
-        iptables-persistent
-
-    # Stop services initially (we'll configure them later)
-    systemctl stop hostapd || true
-    systemctl stop dnsmasq || true
-    systemctl disable hostapd
-    systemctl disable dnsmasq
-
-    log_info "WLAN AP tools installed"
-}
-
 # Setup Hardware Watchdog
 setup_watchdog() {
     log_step "Setting up Hardware Watchdog..."
@@ -529,7 +512,6 @@ main() {
     install_nginx
     install_vpn_tools
     install_modem_tools
-    install_wifi_ap_tools
     setup_watchdog
     create_user
     create_directories

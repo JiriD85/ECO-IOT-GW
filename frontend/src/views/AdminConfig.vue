@@ -8,20 +8,11 @@
           <v-text-field
             v-model="kitName"
             label="Kit Name"
-            hint="Used in header, login page, and WiFi SSID (max 32 characters)"
+            hint="Used in header and login page (max 32 characters)"
             persistent-hint
             :maxlength="32"
             :disabled="loading || saving"
             counter
-          />
-
-          <v-checkbox
-            v-model="updateWifiSsid"
-            label="Also update WiFi Access Point SSID"
-            hint="When checked, WiFi SSID will be updated to match kit name"
-            persistent-hint
-            :disabled="loading || saving"
-            class="mt-4"
           />
         </v-card-text>
       </v-card>
@@ -272,7 +263,6 @@ const canChangePassword = computed(() => {
          passwordData.value.new === passwordData.value.confirm
 })
 const kitName = ref('ECO-IOT-GW')
-const updateWifiSsid = ref(false)
 const originalKitName = ref('ECO-IOT-GW')
 const hasLogo = ref(false)
 const hasFavicon = ref(false)
@@ -409,8 +399,7 @@ const saveConfig = async () => {
     // Update kit name if changed
     if (kitName.value !== originalKitName.value) {
       await brandingApi.updateConfig({
-        kit_name: kitName.value,
-        update_wifi_ssid: updateWifiSsid.value
+        kit_name: kitName.value
       })
       originalKitName.value = kitName.value
     }

@@ -74,9 +74,6 @@ class Settings(BaseSettings):
     SERIAL_DEFAULT_PORT: str = "/dev/ttyAMA0"
     SERIAL_DEFAULT_BAUDRATE: int = 9600
 
-    # WiFi AP
-    HOSTAPD_CONFIG: Path = Path("/etc/hostapd/hostapd.conf")
-    DNSMASQ_CONFIG: Path = Path("/etc/dnsmasq.conf")
 
     # Watchdog
     WATCHDOG_CHECK_INTERVAL: int = 60

@@ -9,8 +9,7 @@ from pathlib import Path
 from typing import Optional, Tuple
 
 from ..config import settings
-from ..models.schemas import BrandingConfig, BrandingStatus, WiFiAPConfig
-from .wifi_service import wifi_service
+from ..models.schemas import BrandingConfig, BrandingStatus
 
 logger = logging.getLogger(__name__)
 
@@ -84,27 +83,17 @@ class BrandingService:
         logo_path = self._assets_dir / "logo"
         favicon_path = self._assets_dir / "favicon"
 
-        # Check WiFi SSID sync status
-        wifi_ssid_synced = False
-        try:
-            wifi_config = wifi_service.get_config()
-            wifi_ssid_synced = (wifi_config.ssid == config_data.get("kit_name", "ECO-IOT-GW"))
-        except Exception as e:
-            logger.warning(f"Failed to check WiFi SSID sync: {e}")
-
         return BrandingStatus(
             kit_name=config_data.get("kit_name", "ECO-IOT-GW"),
             theme=config_data.get("theme", "light"),
             has_logo=logo_path.exists(),
-            has_favicon=favicon_path.exists(),
-            wifi_ssid_synced=wifi_ssid_synced
+            has_favicon=favicon_path.exists()
         )
 
     def set_config(self, config: BrandingConfig) -> BrandingStatus:
         """Update branding configuration."""
         # Load current config
         current_config = self._load_config()
-        old_kit_name = current_config.get("kit_name", "ECO-IOT-GW")
 
         # Update config
         current_config["kit_name"] = config.kit_name
@@ -112,18 +101,6 @@ class BrandingService:
 
         # Save updated config
         self._save_config(current_config)
-
-        # Update WiFi SSID if requested and kit name changed
-        if config.update_wifi_ssid and config.kit_name != old_kit_name:
-            try:
-                wifi_config = wifi_service.get_config()
-                wifi_config.ssid = config.kit_name
-                wifi_service.set_config(wifi_config)
-                logger.info(f"WiFi SSID updated to: {config.kit_name}")
-            except Exception as e:
-                logger.error(f"Failed to update WiFi SSID: {e}")
-                # Don't fail the whole operation if WiFi update fails
-                # User can retry or update WiFi manually
 
         # Return updated status
         return self.get_config()

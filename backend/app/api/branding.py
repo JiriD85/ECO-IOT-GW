@@ -53,7 +53,7 @@ async def update_config(
     Update branding configuration.
 
     Admin only endpoint.
-    Updates kit name and theme, optionally syncs WiFi SSID.
+    Updates kit name and theme.
 
     Args:
         config: New branding configuration
