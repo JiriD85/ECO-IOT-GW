@@ -23,9 +23,8 @@ A clone alone is **not** enough to provision a gateway. Ask the team for:
 | ThingsBoard tenant login | The tooling creates/reprofiles devices | `TB_USERNAME` / `TB_PASSWORD` in `provisioning/migrate/.env` |
 | Tailscale auth key (tagged, reusable, non-ephemeral) | Enrols the unit for remote access | `TS_AUTHKEY` |
 | RESI fleet default SSH password | Used **once** to install our key on a factory unit | `BOX_SSH_PASSWORD` |
-| The RESI card image (~30 GB `sd-card.img`) | Reflashing a unit to factory state | `RESI_IMAGE` |
 | An SSH keypair for the `ecoadmin` user | All access after bootstrap | `BOX_SSH_KEY` (points at the **private** key; `.pub` is read alongside) |
-| Hardware | — | RESI C4 unit, **USB** SD-card reader, Ethernet cable |
+| Hardware | — | A RESI C4 unit running its factory software, and an Ethernet cable |
 
 None of these are in git, and none should ever be committed. See §6.
 
@@ -80,7 +79,7 @@ on the cable, or its tailnet address) and develop the UI against live data.
 Optional: `cp .env.local.example .env.local` — only needed for the "deploy to a Pi over
 SSH" snippets in [CLAUDE.md](CLAUDE.md).
 
-## 4. Path B — provision or re-image a gateway
+## 4. Path B — migrate a gateway
 
 ```bash
 cd provisioning/migrate && cp .env.example .env
@@ -89,7 +88,7 @@ cd provisioning/migrate && cp .env.example .env
 Fill `.env` using the table in §1, then confirm the tooling can see everything:
 
 ```bash
-cd provisioning/migrate && node -e "const c=require('./lib/config.js').load(); console.log('tb    :', c.tb.baseUrl || 'MISSING'); console.log('tbuser:', c.tb.username ? 'set' : 'MISSING'); console.log('tskey :', c.tailscale.authkey ? 'set' : 'MISSING'); console.log('boxpw :', c.box.password ? 'set' : 'MISSING'); console.log('key   :', c.box.keyPath || 'MISSING'); console.log('image :', c.resiImage || 'MISSING')"
+cd provisioning/migrate && node -e "const c=require('./lib/config.js').load(); console.log('tb    :', c.tb.baseUrl || 'MISSING'); console.log('tbuser:', c.tb.username ? 'set' : 'MISSING'); console.log('tskey :', c.tailscale.authkey ? 'set' : 'MISSING'); console.log('boxpw :', c.box.password ? 'set' : 'MISSING'); console.log('key   :', c.box.keyPath || 'MISSING')"
 ```
 
 Then build the offline bundle **while you still have office internet** — this is what keeps
@@ -102,9 +101,12 @@ cd provisioning/migrate && node tui.js --kit <KIT> --skip-tb
 That populates `cache/` (~240 MB) from pinned sources. It is not in git on purpose —
 [ARTIFACTS.md](provisioning/migrate/ARTIFACTS.md) explains why and how to bump a version.
 
-From here follow **[ENGINEER-GUIDE.md](provisioning/migrate/ENGINEER-GUIDE.md)**: flash the
-card, cable up, run the wizard. The wizard self-detects what is already done, so it is safe
-to stop and re-run.
+From here follow **[ENGINEER-GUIDE.md](provisioning/migrate/ENGINEER-GUIDE.md)**: cable up to
+a box still running its factory RESI software and run the wizard. It self-detects what is
+already done, so it is safe to stop and re-run.
+
+The wizard never writes SD cards. Card images are per-box restore images (they carry that
+unit's hostname and HWID), handled separately by [tools/sd.ps1](tools/sd.ps1).
 
 ## 5. Repo map — where to look for what
 
@@ -188,29 +190,28 @@ console health, the container state, live Modbus read counts and the access URLs
 
 ## 9. On Linux or arm64 instead of Windows
 
-Everything except **flashing the card** works unchanged. The wizard shells out only to
-`curl`, `docker`, `node`, `npm`, `tar`, `ssh` and `scp`, all of which are native on Linux;
-PowerShell is used in exactly two places, and both already handle a non-Windows host.
+The migration itself works unchanged. The wizard shells out only to `curl`, `docker`,
+`node`, `npm`, `tar`, `ssh` and `scp`, all native on Linux; PowerShell is used in exactly
+one place (the laptop's cable-adapter DHCP renew) and it already handles a non-Windows host
+by printing the equivalent advice.
 
 What changes:
 
-- **`node tui.js --flash` refuses**, because it drives `tools/sd.ps1` and
-  `win/Restore-Card.ps1`. Flash by hand instead, then run the wizard without `--flash`:
+- **The separate SD-card tooling is Windows-only.** `tools/sd.ps1` and
+  `win/Restore-Card.ps1` are PowerShell, and on Linux you do not need them — the kernel
+  sees the card directly, so `mount` and `dd` do the job:
 
   ```bash
   lsblk -o NAME,SIZE,TYPE,MODEL
   ```
 
   ```bash
-  sudo dd if=sd-card.img of=/dev/sdX bs=4M status=progress conv=fsync && sync
+  sudo dd if=<that-box>.img of=/dev/sdX bs=4M status=progress conv=fsync && sync
   ```
 
-  Two guards `Restore-Card.ps1` gives you on Windows that `dd` does not: make sure the
-  target is the card and not your system disk, and write to the **whole device**
-  (`/dev/sdb`), never a partition (`/dev/sdb1`).
-
-- **No usbipd/WSL dance.** The kernel sees the card directly, so `tools/sd.ps1` is not
-  needed — just `mount`.
+  Two guards `Restore-Card.ps1` gives you that `dd` does not: make sure the target is the
+  card and not your system disk, and write to the **whole device** (`/dev/sdb`), never a
+  partition (`/dev/sdb1`). And remember a card image belongs to **one** box.
 
 - **The tar and path traps in §6 do not apply.** They are artifacts of GNU tar on Windows
   drive letters.

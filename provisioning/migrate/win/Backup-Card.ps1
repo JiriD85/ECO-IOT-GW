@@ -10,9 +10,12 @@
   Uses the approach proven on this machine (iotgw.img, sd-card.img):
     * FileStream opened directly on the device path with [IO.FileAccess]::Read
       (read-only by construction - it cannot damage the card),
-    * byte count taken from Win32_DiskDrive.Size, which is the actually-readable
-      extent. Get-Disk.Size can report a slightly larger value (~12 MB more on
-      this reader) and reading that tail fails.
+    * byte count taken as max(Get-Disk.Size, Win32_DiskDrive.Size). Win32 rounds
+      down to whole cylinders and can under-report - 897 KB short on the Realtek
+      PCIe reader, 4.7 MB short on the USB reader - which silently truncates the
+      tail of the last partition. Overshooting is the safe direction: a read
+      error inside the final 8 MB is treated as end of media, anything earlier
+      is a real failure and throws.
 
   HARD SAFETY GUARDS: refuses the system/boot disk; refuses a non-removable disk
   unless -Force; refuses to overwrite an existing non-empty output file.

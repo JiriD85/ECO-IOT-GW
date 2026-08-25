@@ -31,7 +31,6 @@ function load(opts = {}) {
     tailscale: { authkey: g('TS_AUTHKEY', '') },
     box: { user: g('BOX_SSH_USER', 'resi'), password: g('BOX_SSH_PASSWORD', ''), keyPath: g('BOX_SSH_KEY', '') },
     docker: { staticTgz: g('DOCKER_STATIC_TGZ', ''), imageTar: g('TBGW_IMAGE_TAR', ''), imageRef: g('TBGW_IMAGE_REF', 'thingsboard/tb-gateway:latest') },
-    resiImage: g('RESI_IMAGE', ''),   // raw RESI card image used by the wizard's --flash phase
   };
   return cfg;
 }

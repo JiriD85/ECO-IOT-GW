@@ -1,15 +1,22 @@
-# Reinstalling a RESI Doctor-Kit gateway — engineer guide
+# Migrating a RESI Doctor-Kit gateway — engineer guide
 
-Take a RESI C4 unit back to its **original factory SD card image**, then reinstall the ECO
-software stack on it with one guided terminal tool. Worked example throughout: kit
-`DBKIT24EU-0010`.
+Convert a RESI C4 unit that is **still running its factory software** to the ECO stack,
+in place, over a direct Ethernet cable, with one guided terminal tool. Worked example
+throughout: kit `DBKIT24EU-0010`.
 
 You need no knowledge of the migration internals. The wizard detects what is already
 done and skips it, so it is safe to stop it and run it again.
 
-> **Scope.** This replaces only the SD card. The RESI C4 carrier board, the meter wiring
-> and the SIM stay as they are, so the unit keeps its hardware identity (HWID) and its
-> ThingsBoard devices keep receiving data under the same names.
+> **Scope.** Nothing is reimaged and nothing is deleted. The RESI software is *disabled*
+> (systemd units masked, reversible with one command), and the ECO stack is installed
+> alongside it. The carrier board, meter wiring, SIM and SD card all stay as they are, so
+> the unit keeps its hardware identity (HWID) and its ThingsBoard devices keep reporting
+> under the same names.
+
+> **The wizard never writes SD cards.** The RESI image in the archive is a restore image
+> for one specific unit — it carries that box's hostname and HWID — so it must not be
+> written onto a different one. Card restore is a separate, deliberate operation; see
+> §9.
 
 ---
 
@@ -18,13 +25,12 @@ done and skips it, so it is safe to stop it and run it again.
 | | |
 |---|---|
 | Laptop | Windows, with the repo checked out |
-| Card reader | **USB** reader — a hub with an SD slot is ideal. The laptop's *built-in* PCIe reader does not work for this (see Troubleshooting) |
-| SD card | ≥ 32 GB, same size or larger than the image. **Its contents are destroyed.** |
-| Image | The RESI backup, e.g. `C:\Users\<you>\sdcard\sd-card.img` (~29.7 GB raw) |
+| Gateway | A RESI C4 unit, powered on and **running its factory RESI software** |
 | Cable | Ordinary Ethernet cable, laptop ↔ gateway. No switch or router needed |
-| Access | Office internet on the laptop (Wi-Fi). The **gateway** needs almost none — see §6 |
+| Credentials | The RESI fleet SSH login (`BOX_SSH_PASSWORD` in `.env`) — used once, then replaced by key auth |
+| Access | Office internet on the laptop (Wi-Fi). The **gateway** needs almost none — see §5 |
 
-Time: about **15 min of flashing** plus **10–15 min of install**, mostly unattended.
+Time: about **10–15 min**, mostly unattended.
 
 ---
 
@@ -36,21 +42,13 @@ Run these once; if they all pass, skip to §3.
 node --version
 ```
 
-```bash
-usbipd --version
-```
-
-```bash
-wsl -l -v
-```
-
-Node 18+, `usbipd-win`, and a running WSL 2 distro are all required. Install the middle
-one with `winget install usbipd` if it is missing.
+Node 18+ is all the migration needs. (`usbipd-win` and WSL 2 are only used by the separate
+SD-card tooling in §9, and play no part in this procedure.)
 
 Then check the two things the wizard cannot invent:
 
 ```bash
-cd provisioning/migrate && node -e "const c=require('./lib/config.js').load(); console.log('image :', c.resiImage); console.log('tb    :', c.tb.baseUrl); console.log('tskey :', c.tailscale.authkey ? 'set' : 'MISSING'); console.log('boxpw :', c.box.password ? 'set' : 'MISSING')"
+cd provisioning/migrate && node -e "const c=require('./lib/config.js').load(); console.log('tb    :', c.tb.baseUrl); console.log('tskey :', c.tailscale.authkey ? 'set' : 'MISSING'); console.log('boxpw :', c.box.password ? 'set' : 'MISSING'); console.log('key   :', c.box.keyPath || 'MISSING')"
 ```
 
 ```bash
@@ -75,62 +73,37 @@ Copy `.env.example` to `.env` and fill it in if `.env` does not exist yet.
 
 ---
 
-## 3. Step 1 — flash the card
+## 3. Step 1 — cable up and connect
 
-Put the card in the USB reader, then:
+1. Connect the Ethernet cable directly between laptop and gateway.
+2. Set the laptop's Ethernet adapter to **automatic (DHCP)**.
+3. Make sure the gateway is powered on and has finished booting.
 
-```bash
-cd provisioning/migrate && node tui.js --kit DBKIT24EU-0010 --flash
-```
+The factory image carries **no Ethernet profile** — only the two GSM ones — so `eth0`
+waits for DHCP, finds none, and falls back to a link-local address. Both ends self-assign,
+and the unit is found by the mDNS name **`RESI-C4.local`** that its avahi daemon
+advertises. `sshd` is enabled in the factory image, so it answers as soon as it is up.
 
-The wizard will:
-
-1. mount the card and **tell you what is currently on it** (its hostname), so you can
-   confirm you are erasing the right card;
-2. ask you to type `ERASE` — nothing is written before that;
-3. pick the target disk automatically (a multi-slot hub reports its empty slots as 0-byte
-   disks; those are ignored), refusing anything too small for the image;
-4. ask for one **UAC prompt**, then write the image (several minutes — the system/boot
-   disk can never be selected).
-
-You can also flash on its own, without starting an install:
-
-```bash
-powershell -File tools/sd.ps1 -Action flash -Image "C:/Users/<you>/sdcard/sd-card.img"
-```
-
----
-
-## 4. Step 2 — cable and power
-
-When the wizard says the image is written:
-
-1. move the card into the gateway;
-2. connect the Ethernet cable directly between laptop and gateway;
-3. make sure the laptop's Ethernet adapter is set to **automatic (DHCP)**;
-4. power the gateway on;
-5. press Enter in the wizard.
-
-The factory image ships **no Ethernet profile** — only the two GSM ones — so on first boot
-`eth0` waits for DHCP, finds none, and falls back to a link-local address. The unit is
-found by its mDNS name **`RESI-C4.local`**, which its avahi daemon advertises; `sshd` is
-enabled in the image, so it answers immediately.
-
-Allow **60–90 s** after power-on. The wizard retries for 10 minutes and prints the
-countdown, so you do not have to time anything.
-
----
-
-## 5. Step 3 — let it run
-
-The wizard already started in §3 continues on its own. If you flashed separately, start it
-with:
+Then start the wizard:
 
 ```bash
 cd provisioning/migrate && node tui.js --kit DBKIT24EU-0010
 ```
 
-Each phase prints one of:
+Its first phase, `connect`, tries in order: `ecoadmin@10.10.10.1` by key (an
+already-migrated box), `resi@10.10.10.1` by password (networking done, migration not),
+then `RESI-C4.local` with the RESI fleet password. It retries for 5 minutes and prints a
+countdown, so you do not have to time the boot.
+
+Link-local **flaps badly** — that is precisely why the next phase pins the box to a
+stable `10.10.10.1`. If auto-discovery fails, the wizard tells you how to find the
+address by hand and you re-run with `--host <addr>`.
+
+---
+
+## 4. Step 2 — let it run
+
+The wizard started in §3 carries on by itself. Each phase prints one of:
 
 - `⏭ already done — …` — detected as complete, skipped
 - `→ …` — running, with the box's own output streamed underneath
@@ -146,7 +119,6 @@ If a phase fails it says so and asks whether to carry on. The only unrecoverable
 
 | Phase | What it does |
 |---|---|
-| `flash` | Writes the RESI image (only with `--flash`) |
 | `connect` | Finds the box, picks password or key auth |
 | `net` | Puts `eth0` on a fixed **10.10.10.1**, blocks SIM→cable forwarding, stops the box handing your laptop a useless default route |
 | `tb` | Reprofiles the ThingsBoard devices and captures the gateway MQTT credentials |
@@ -159,7 +131,7 @@ If a phase fails it says so and asks whether to carry on. The only unrecoverable
 | `deploy` | Starts the tb-gateway container |
 | `tailscale` | Enrols the unit on the tailnet for remote access |
 | `webconsole` | Installs the FastAPI + Vue console on port 80, with per-device secrets |
-| `lte` | Restores the fleet's `LTE_*` telemetry (see §7) |
+| `lte` | Restores the fleet's `LTE_*` telemetry (see §6) |
 | `verify` | Health, container, live bus reads, LTE sample, access URLs |
 
 The bus scan **refuses to probe while tb-gateway is running**, because two processes on one
@@ -167,7 +139,7 @@ RS485 line corrupts live readings. That is deliberate, not a failure.
 
 ---
 
-## 6. What actually crosses the SIM
+## 5. What actually crosses the SIM
 
 Everything large moves over the Ethernet cable from `cache/`. Over the mobile link the
 gateway only does:
@@ -182,7 +154,7 @@ burn the data allowance, and nothing in this install needs it.
 
 ---
 
-## 7. The LTE telemetry
+## 6. The LTE telemetry
 
 The old RESI software published five keys on the gateway device `ECO_<HWID>_gw` —
 `LTE_RSSI`, `LTE_RSRQ`, `LTE_RSRP`, `LTE_SN_RATIO`, `LTE_IP` — and the fleet dashboards
@@ -197,7 +169,7 @@ fleet's no-signal sentinel. Pushes go out every 15 minutes; change that with
 
 ---
 
-## 8. Verify
+## 7. Verify
 
 `verify` prints the checks, but to confirm by hand:
 
@@ -220,25 +192,26 @@ should show the five `LTE_*` keys within about 15 minutes.
 
 ---
 
-## 9. Troubleshooting
+## 8. Troubleshooting
 
-**"No USB mass-storage reader found", or the card never appears in WSL.**
-The laptop's **built-in Realtek PCIe reader cannot be used** — neither `wsl --mount` nor
-usbipd can pass it through. Use a USB reader.
+**The box is not found.**
+Give it 90 s after power-on, then check the cable and that the laptop's Ethernet is on
+DHCP. Confirm the unit is actually up and still running RESI (its VNC/Grafana would
+answer). You can name the address yourself with `--host RESI-C4.local` or `--host <ip>`.
 
-**`Device busy (exported)` when attaching the card.**
-Windows re-mounted the card first. **Unplug the reader and plug it back in**; the tooling
-waits for it and then attaches. (Deliberately not solved with `usbipd bind --force`, which
-would take the reader away from Windows entirely.)
+If mDNS is not resolving, find the link-local address directly — the wizard prints these
+same commands when it gives up:
 
-**"several candidate disks — pass -DiskNumber".**
-Two cards are readable. Run `powershell -File tools\sd.ps1 -Action disks`, identify the
-right one, and pass `-DiskNumber N`.
+```bash
+ping -6 ff02::1%<iface>
+```
 
-**The box is not found after power-on.**
-Give it 90 s. Then check the cable and that the laptop's Ethernet is on DHCP. You can name
-the address yourself with `--host RESI-C4.local` or `--host <ip>`; the wizard also prompts
-for it once it runs out of patience.
+```bash
+netsh interface ipv6 show neighbors
+```
+
+Then re-run with `--host "[fe80::...%<iface>]"`. Expect link-local to be flaky — that is
+why the `net` phase moves the box to a stable `10.10.10.1` as its very first action.
 
 **The laptop loses internet, or Tailscale goes offline, once connected to the box.**
 The box used to hand the laptop a default route it could not use. The `net` phase prevents
@@ -256,17 +229,38 @@ The Modbus connector must run at `DEBUG`, and the setting has to be *inside*
 
 ---
 
-## 10. Rolling back
+## 9. Rolling back
 
 The RESI software is **disabled, not deleted** — its systemd units are masked and its files
-are untouched, so a unit can be returned to factory behaviour without reflashing.
-ThingsBoard changes made by the `tb` phase are recorded in
-`out/<KIT>.tb-revert.json`. And the card image itself is the ultimate fallback: reflash and
-start again.
+are untouched, so a unit goes back to factory behaviour without reflashing anything:
+
+```bash
+ssh ecoadmin@10.10.10.1 'sudo /usr/local/sbin/eco-downgrade.sh && sudo reboot'
+```
+
+That unmasks every service at its original enable-state and restores the root crontab that
+launches `RESIvmachine`. ThingsBoard changes from the `tb` phase are recorded in
+`out/<KIT>.tb-revert.json`.
+
+### Restoring a card (separate, per-box)
+
+A card image is the last resort, and it is **specific to the unit it came from** — it
+carries that box's hostname and the HWID every ThingsBoard device name is built from.
+Never write one unit's image onto another. Each archived image has its own README next to
+it recording the MBR signature, so cards of the same size can be told apart:
+
+```bash
+powershell -File tools/sd.ps1 -Action flash -Image "C:/path/to/<that-box>.img"
+```
+
+That needs a **USB** card reader (the laptop's built-in PCIe reader cannot be passed
+through to WSL). If a flash reports `Device busy (exported)`, Windows re-mounted the card
+first — unplug the reader and plug it back in. If it reports several candidate disks, run
+`powershell -File tools/sd.ps1 -Action disks` and pass `-DiskNumber N`.
 
 ---
 
-## 11. Handling secrets
+## 10. Handling secrets
 
 `.env` and everything under `out/` and `cache/` hold credentials and are git-ignored.
 Never commit them, and do not paste `out/<KIT>.secrets.json` into tickets or chat — pass

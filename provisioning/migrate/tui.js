@@ -2,8 +2,9 @@
 /*
  * tui.js — guided RESI -> ECO migration wizard.
  *
- * A line-based, interactive installer that walks a fresh (reflashed) RESI box all
- * the way to the ECO stack, OR re-runs against an already-migrated box and skips
+ * A line-based, interactive installer that connects to a RESI box over Ethernet while
+ * it is still running its factory software, and walks it all the way to the ECO stack -
+ * OR re-runs against an already-migrated box and skips
  * every step it detects is already done. It orchestrates the same proven pieces the
  * RUNBOOK documents (setup-direct-ethernet.sh, migrate-box TB logic, box/*.sh,
  * build-gw-config.js) — it is a controller, not new install logic.
@@ -33,7 +34,6 @@ const PROV = path.join(__dirname, '..');        // provisioning
 const CACHE = path.join(__dirname, 'cache');
 const OUT = path.join(__dirname, 'out');
 const BOXDIR = path.join(__dirname, 'box');
-const SD_PS1 = path.join(REPO, 'tools', 'sd.ps1');
 const BYID_IF = 'if04';                          // meter-bus USB interface
 const PRESENT_PROBE_UNITS = [88, 80, 81, 82];    // PF1..PF4 unit ids to probe
 
@@ -74,8 +74,6 @@ function parseArgs(argv) {
     else if (t === '--host') a.host = argv[++i];
     else if (t === '--skip-artifacts') a.skipArtifacts = true;
     else if (t === '--skip-tb') a.skipTb = true;
-    else if (t === '--flash') a.flash = true;
-    else if (t === '--image') a.image = argv[++i];
     else if (t === '--wait') a.wait = parseInt(argv[++i], 10);
     else if (t === '--no-lte') a.noLte = true;
   }
@@ -122,18 +120,6 @@ function local(cmd, args, cwd) {
   });
 }
 
-// Run a PowerShell script with literal argv (no shell:true - that mangles paths/quotes).
-function ps(args) {
-  return new Promise(res => {
-    const proc = spawn('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', ...args],
-      { stdio: ['ignore', 'pipe', 'pipe'] });
-    let out = '';
-    const f = b => { out += b.toString(); dimw(b.toString()); };
-    proc.stdout.on('data', f); proc.stderr.on('data', f);
-    proc.on('close', code => res({ code, out }));
-    proc.on('error', e => res({ code: 1, out: String(e.message) }));
-  });
-}
 // ---------- offline artifact manifest ----------
 // cache/ holds ~240 MB of vendor binaries that are deliberately NOT in git (ARTIFACTS.md
 // explains why). artifacts.json pins the exact versions, URLs and hashes so the bundle is
@@ -170,12 +156,6 @@ async function fetchVerified(entry, dest) {
     warn('no sha256 pinned for ' + entry.file + ' - paste this into artifacts.json: ' + got);
   }
   fs.renameSync(tmp, dest);
-}
-
-function resiImage(ctx) {
-  const p = ctx.args.image || ctx.cfg.resiImage || '';
-  if (!p) throw new Error('no RESI image configured - set RESI_IMAGE in .env or pass --image <path>');
-  return p;
 }
 
 // ---------- bootstrap: find + connect to the box ----------
@@ -215,7 +195,11 @@ async function bootstrap(ctx, allowPrompt = true) {
     ok(`reached ${C.b}resi@${manual}${C.r}`);
     return;
   }
-  throw new Error('box unreachable on every path (cable/mDNS/manual)');
+  throw new Error('box unreachable on every path (10.10.10.1 / mDNS / manual).\n' +
+    '  The box must be powered on, cabled directly, and still running RESI.\n' +
+    '  Find it by hand, then re-run with --host <addr>:\n' +
+    '    Windows: ping -6 ff02::1%<iface>  then  netsh interface ipv6 show neighbors\n' +
+    '    Linux:   ping6 -c2 ff02::1%<iface>  then  ip -6 neigh');
 }
 
 // ---------- laptop cable-adapter DHCP renew (Windows) ----------
@@ -233,47 +217,10 @@ async function renewCableAdapter() {
 // PHASES
 // =====================================================================
 const PHASES = [
-  // ---------------- 0a. Flash the card ----------------
-  // Opt-in only: without --flash this is skipped, so re-running the wizard against a
-  // live box can never wipe it. Delegates to tools/sd.ps1 -Action flash, which releases
-  // the reader from WSL, picks the one disk big enough for the image, and drives
-  // win/Restore-Card.ps1 (system/boot-disk guards; its typed prompt bypassed with -Yes
-  // because this phase already made the operator type ERASE).
-  {
-    id: 'flash', title: 'Laptop - write the RESI image to the SD card (DESTRUCTIVE)',
-    async detect(ctx) {
-      if (!ctx.args.flash) return { done: true, detail: 'not requested (pass --flash to reimage the card)' };
-      const img = resiImage(ctx);
-      if (!fs.existsSync(img)) throw new Error('image not found: ' + img);
-      const gb = (fs.statSync(img).size / 1e9).toFixed(1);
-      return { done: false, detail: 'will overwrite the card with ' + img + ' (' + gb + ' GB)' };
-    },
-    async run(ctx) {
-      if (os.platform() !== 'win32') throw new Error('--flash is Windows-only (uses tools/sd.ps1)');
-      const img = resiImage(ctx);
-
-      // Show what is about to be destroyed, read off the card itself, so the operator
-      // confirms against real content rather than just a disk number.
-      step('inspecting the card currently in the reader...');
-      await ps([SD_PS1, '-Action', 'attach']);
-      const st = await ps([SD_PS1, '-Action', 'status']);
-      const host = (st.out.match(/card hostname:\s*(\S+)/) || [])[1];
-      warn(host ? 'the card in the reader is "' + host + '" - it will be ERASED'
-                : 'could not identify the card contents');
-
-      if (!ctx.args.yes) {
-        const t = (await ask('  type ERASE to overwrite the card with the RESI image: ')).trim();
-        if (t !== 'ERASE') throw new Error('aborted by operator');
-      }
-      const r = await ps([SD_PS1, '-Action', 'flash', '-Image', img, '-Yes']);
-      if (r.code !== 0) throw new Error('flash failed');
-      ok('RESI image written to the card');
-    },
-  },
-
-  // ---------------- 0b. Connect ----------------
-  // Was a pre-loop step; it is a phase now so it can run *after* a flash and wait for
-  // the freshly imaged box to finish booting instead of failing immediately.
+  // ---------------- 0. Connect ----------------
+  // A phase rather than a pre-loop step so it can retry: first contact is over the
+  // link-local address while the box still runs RESI, and link-local flaps badly (see
+  // RUNBOOK phase 1) - which is exactly why the next phase pins it to 10.10.10.1.
   {
     id: 'connect', title: 'Connect - find the box and pick an auth path', fatal: true,
     async detect(ctx) {
@@ -281,10 +228,7 @@ const PHASES = [
       return { done: false, detail: 'probing cable / mDNS' };
     },
     async run(ctx) {
-      const waitMin = Number.isFinite(ctx.args.wait) ? ctx.args.wait : (ctx.args.flash ? 10 : 2);
-      if (ctx.args.flash && !ctx.args.yes) {
-        await ask('  move the card into the gateway, connect Ethernet, power it on, then press Enter... ');
-      }
+      const waitMin = Number.isFinite(ctx.args.wait) ? ctx.args.wait : 5;
       const deadline = Date.now() + waitMin * 60000;
       for (let attempt = 1; ; attempt++) {
         try {
@@ -854,7 +798,7 @@ async function ensureEcoadminPassword(ctx) {
 // =====================================================================
 async function mainWizard() {
   const args = parseArgs(process.argv);
-  if (!args.kit) { console.error('usage: node tui.js --kit <DBKIT..> [--flash [--image <img>]] [--host <addr>] [--wait <min>] [--yes] [--skip-artifacts] [--skip-tb] [--no-lte]'); process.exit(2); }
+  if (!args.kit) { console.error('usage: node tui.js --kit <DBKIT..> [--host <addr>] [--wait <min>] [--yes] [--skip-artifacts] [--skip-tb] [--no-lte]'); process.exit(2); }
   const cfg = cfgLib.load();
   const miss = cfgLib.requireKeys(cfg, ['tb']);
   if (miss.length) { console.error(`missing config: ${miss.join(', ')} (see .env.example)`); process.exit(2); }

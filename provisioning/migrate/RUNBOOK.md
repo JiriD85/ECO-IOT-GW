@@ -7,8 +7,8 @@ on **DBKIT24EU-0010** (HWID `1F0022000D57435535333920`). This is also the spec t
 `tui.js` wizard implements.
 
 > **Doing an install?** Follow [ENGINEER-GUIDE.md](ENGINEER-GUIDE.md) instead — a
-> step-by-step tutorial for reflashing a unit to the factory RESI image and reinstalling
-> with the wizard. This runbook is the reference for *why* each step exists.
+> step-by-step tutorial for migrating a unit that is still running its factory RESI
+> software, using the wizard. This runbook is the reference for *why* each step exists.
 
 ## The wizard — `node tui.js`
 
@@ -21,7 +21,8 @@ TB logic, `box/*.sh`, `build-gw-config.js`), not new install logic. Key behaviou
 - **Auto-skip.** Every phase has an idempotency probe; a phase it detects is already
   done prints `⏭ already done` and is skipped. A re-run against a finished box skips
   everything except the read-only config-regen and verify. So the same wizard both
-  provisions a freshly-reflashed RESI box and safely re-runs against a live one.
+  provisions a box still running its factory RESI software, and safely re-runs against an
+  already-migrated one.
 - **Bootstrap.** Finds the box automatically: `ecoadmin@10.10.10.1` (key, already
   provisioned) → `resi@10.10.10.1` (password) → fresh box via `--host` / `RESI-C4.local`.
   Switches from the `resi` password to the `ecoadmin` key the moment phase 3 installs it.
@@ -297,7 +298,8 @@ anonymous, `ecoadmin` login → token → reads 200; Meters shows PF1 `T_flow_C`
 
 `sudo /usr/local/sbin/eco-downgrade.sh` (unmask RESI + restore cron) then reboot; and
 `node migrate-box.js --kit <kit> --revert-tb` (restore TB profiles). For a full board
-rollback the RESI SD image can be re-flashed (`win/Restore-Card.ps1`).
+rollback that box's own SD image can be re-flashed (`win/Restore-Card.ps1`) - card
+images are per-box and must never be written onto a different unit.
 
 ---
 
