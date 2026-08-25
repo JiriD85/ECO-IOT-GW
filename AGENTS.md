@@ -120,9 +120,9 @@ codex exec --approval-mode full-auto -q "Als devops-agent: [Aufgabe]"
 ```bash
 # Host: 192.168.1.69
 # User: pi
-# Password: pi
+# Credentials: export PI_USER / PI_HOST / PI_PASSWORD from .env.local
 
-sshpass -p 'pi' ssh -o StrictHostKeyChecking=no pi@192.168.1.69 '[COMMAND]'
+sshpass -p "$PI_PASSWORD" ssh -o StrictHostKeyChecking=no "$PI_USER@$PI_HOST" '[COMMAND]'
 ```
 
 ### Häufige Befehle

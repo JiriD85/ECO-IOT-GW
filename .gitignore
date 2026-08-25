@@ -66,3 +66,17 @@ backups/
 .coverage
 htmlcov/
 .pytest_cache/
+
+# Credential ledger + per-kit secrets produced by the migration wizard.
+# out/ is already ignored; these patterns are belt-and-braces so a stray `git add -f`
+# or a copy left elsewhere in the tree still cannot be committed.
+credentials.csv
+*.secrets.json
+*.gw-mqtt.json
+*.tb-revert.json
+
+# Offline install artifacts are large vendor binaries. They are NOT committed - rebuild
+# them with provisioning/migrate/fetch-artifacts.sh (see ARTIFACTS.md).
+provisioning/migrate/cache/
+*.img
+*.img.zst

@@ -110,22 +110,23 @@ sudo ./install/uninstall.sh              # Uninstall
 ## Remote Deployment (Raspberry Pi)
 
 ```bash
-# SSH connection (credentials in .env.local)
-sshpass -p 'pi' ssh -o StrictHostKeyChecking=no pi@192.168.1.69 '[COMMAND]'
+# SSH connection. Credentials live in .env.local (gitignored) - export them first:
+#   export PI_USER=pi PI_HOST=<ip> PI_PASSWORD=<password>
+sshpass -p "$PI_PASSWORD" ssh -o StrictHostKeyChecking=no "$PI_USER@$PI_HOST" '[COMMAND]'
 
 # Deploy frontend
 cd frontend && npm run build
-sshpass -p 'pi' scp -r dist/* pi@192.168.1.69:/tmp/frontend-dist/
-sshpass -p 'pi' ssh pi@192.168.1.69 'sudo cp -r /tmp/frontend-dist/* /var/www/eco-iot-gw/'
+sshpass -p "$PI_PASSWORD" scp -r dist/* "$PI_USER@$PI_HOST":/tmp/frontend-dist/
+sshpass -p "$PI_PASSWORD" ssh "$PI_USER@$PI_HOST" 'sudo cp -r /tmp/frontend-dist/* /var/www/eco-iot-gw/'
 
 # Deploy backend
-sshpass -p 'pi' scp backend/app/*.py pi@192.168.1.69:/tmp/backend/
-sshpass -p 'pi' ssh pi@192.168.1.69 'sudo cp -r /tmp/backend/* /opt/eco-iot-gw/backend/app/'
-sshpass -p 'pi' ssh pi@192.168.1.69 'sudo systemctl restart eco-iot-gw-backend'
+sshpass -p "$PI_PASSWORD" scp backend/app/*.py "$PI_USER@$PI_HOST":/tmp/backend/
+sshpass -p "$PI_PASSWORD" ssh "$PI_USER@$PI_HOST" 'sudo cp -r /tmp/backend/* /opt/eco-iot-gw/backend/app/'
+sshpass -p "$PI_PASSWORD" ssh "$PI_USER@$PI_HOST" 'sudo systemctl restart eco-iot-gw-backend'
 
 # Check service status
-sshpass -p 'pi' ssh pi@192.168.1.69 'sudo systemctl status eco-iot-gw-backend'
-sshpass -p 'pi' ssh pi@192.168.1.69 'sudo journalctl -u eco-iot-gw-backend -n 50 --no-pager'
+sshpass -p "$PI_PASSWORD" ssh "$PI_USER@$PI_HOST" 'sudo systemctl status eco-iot-gw-backend'
+sshpass -p "$PI_PASSWORD" ssh "$PI_USER@$PI_HOST" 'sudo journalctl -u eco-iot-gw-backend -n 50 --no-pager'
 ```
 
 ## Configuration Notes

@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # Mount the SD card image read-only and extract the old gateway configuration.
-# Run in WSL:  sudo bash /mnt/c/Users/01ALP529/sdcard/extract-config.sh
+# Run in WSL:  sudo SDCARD_DIR=/mnt/c/Users/<you>/sdcard bash extract-resi-card.sh
 set -euo pipefail
 
-IMG=/mnt/c/Users/01ALP529/sdcard/sd-card.img
-OUT=/mnt/c/Users/01ALP529/sdcard/extracted
+SDCARD_DIR="${SDCARD_DIR:-/mnt/c/sdcard}"
+IMG="$SDCARD_DIR/sd-card.img"
+OUT="$SDCARD_DIR/extracted"
 ROOT=/mnt/sdroot
 BOOT=/mnt/sdboot
 
@@ -156,6 +157,6 @@ echo "  copied docker container metadata"
 chmod -R a+rX "$OUT" 2>/dev/null || true
 
 echo
-echo "DONE. Extract is at C:\\Users\\01ALP529\\sdcard\\extracted"
+echo "DONE. Extract is at $OUT"
 echo "Image stays mounted read-only at $ROOT and $BOOT."
 echo "To unmount later:  sudo umount $ROOT $BOOT && sudo losetup -d $LOOP"
