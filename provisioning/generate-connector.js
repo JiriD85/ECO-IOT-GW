@@ -72,7 +72,12 @@ function buildModbusConnector(site) {
       sendDataOnlyOnChange: false,
       configVersion: CONFIG_VERSION,
       configuration: 'modbus.json',
-      configurationJson: { master: { slaves } },
+      // logLevel goes INSIDE configurationJson so it lands in the written
+      // modbus.json (build-gw-config serialises configurationJson only). The web
+      // console's Meters view decodes live values by pairing the connector's
+      // DEBUG "Reading N registers…" / "Read with result…" lines, so a device
+      // whose console should show per-tag values needs logLevel DEBUG.
+      configurationJson: { logLevel: site.logLevel || 'INFO', master: { slaves } },
     },
   };
 }

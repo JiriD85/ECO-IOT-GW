@@ -1,0 +1,30 @@
+{
+  "_comment": [
+    "Pinned sources for the offline install bundle. These files are deliberately NOT in",
+    "git (see ARTIFACTS.md); this manifest is what makes cache/ reproducible.",
+    "The wizard's `artifacts` phase reads it and fetches anything missing, verifying",
+    "sha256 where the upstream artifact is byte-stable.",
+    "To move to a newer version: bump the version, blank the sha256, run the phase once,",
+    "then paste the sha256 it prints."
+  ],
+  "docker_static": {
+    "version": "29.7.2",
+    "url": "https://download.docker.com/linux/static/stable/aarch64/docker-29.7.2.tgz",
+    "file": "docker-29.7.2.tgz",
+    "sha256": "43d143448adf2c2787704e7d7704fd6d62d367a54c5edaef0a3f75509cb0938d"
+  },
+  "tailscale": {
+    "version": "1.102.2",
+    "url": "https://pkgs.tailscale.com/stable/tailscale_1.102.2_arm64.tgz",
+    "file": "tailscale_1.102.2_arm64.tgz",
+    "sha256": "2b64e9ade7e73034b5ec9e9bcd537f5ddd14ae3abb435e57e929e7486ae42660"
+  },
+  "tb_gateway_image": {
+    "ref": "thingsboard/tb-gateway:3.7-stable",
+    "digest": "sha256:7cb0f3a69d0d29ac834e92e3656d06021edc1c84de8d7afc2cba4effaea49323",
+    "platform": "linux/arm64",
+    "file": "tbgw-3.7-stable-arm64.tar.gz",
+    "sha256": null,
+    "_note": "docker save output is not byte-reproducible (tar ordering/timestamps), so the immutable image digest above is the thing that is pinned, not a file hash."
+  }
+}

@@ -1,0 +1,5 @@
+# user-specific config and run artifacts — never committed
+.env
+out/
+cache/
+*.log
