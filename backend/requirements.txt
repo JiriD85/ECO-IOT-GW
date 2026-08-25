@@ -27,8 +27,12 @@ pyserial>=3.5
 psutil>=5.9.0
 
 # Network Management
-pyroute2>=0.9.3
-netifaces>=0.11.0
+# Linux-only, and optional even there: network_service.py import-guards both and falls
+# back to psutil. netifaces has no Windows wheels for Python 3.11+, so without this marker
+# `pip install -r requirements.txt` fails on a Windows dev machine trying to compile it.
+# The lean gateway install omits both for the same reason.
+pyroute2>=0.9.3; sys_platform == "linux"
+netifaces>=0.11.0; sys_platform == "linux"
 
 # YAML Processing
 pyyaml>=6.0.1

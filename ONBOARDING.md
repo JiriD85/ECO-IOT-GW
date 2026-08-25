@@ -31,6 +31,9 @@ None of these are in git, and none should ever be committed. See §6.
 
 ## 2. Prerequisites
 
+**These guides assume Windows x86-64**, which is what the team uses. Everything works on
+Linux and macOS too *except* card flashing — see §9 for the differences.
+
 Install only what your task needs.
 
 | Tool | Needed for | Check |
@@ -62,6 +65,11 @@ The frontend serves on **port 3000** and proxies `/api` to `http://localhost:800
 ```bash
 cd backend && pytest
 ```
+
+`pyroute2` and `netifaces` are marked `sys_platform == "linux"` in `requirements.txt`, so
+pip skips them on Windows — deliberate, since `netifaces` has no Windows wheels for Python
+3.11+ and would try to compile. `network_service.py` import-guards both and falls back to
+`psutil`. Do not remove those markers.
 
 **Expect failures in device-facing features on Windows.** The backend shells out to
 `systemctl`, `nmcli`, `mmcli`, `docker` and reads `/etc/…`; none of that exists on Windows.
@@ -177,3 +185,48 @@ cd provisioning/migrate && node tui.js --kit <KIT> --yes
 
 Everything already done reports `⏭ already done`; the final `verify` block prints the
 console health, the container state, live Modbus read counts and the access URLs.
+
+## 9. On Linux or arm64 instead of Windows
+
+Everything except **flashing the card** works unchanged. The wizard shells out only to
+`curl`, `docker`, `node`, `npm`, `tar`, `ssh` and `scp`, all of which are native on Linux;
+PowerShell is used in exactly two places, and both already handle a non-Windows host.
+
+What changes:
+
+- **`node tui.js --flash` refuses**, because it drives `tools/sd.ps1` and
+  `win/Restore-Card.ps1`. Flash by hand instead, then run the wizard without `--flash`:
+
+  ```bash
+  lsblk -o NAME,SIZE,TYPE,MODEL
+  ```
+
+  ```bash
+  sudo dd if=sd-card.img of=/dev/sdX bs=4M status=progress conv=fsync && sync
+  ```
+
+  Two guards `Restore-Card.ps1` gives you on Windows that `dd` does not: make sure the
+  target is the card and not your system disk, and write to the **whole device**
+  (`/dev/sdb`), never a partition (`/dev/sdb1`).
+
+- **No usbipd/WSL dance.** The kernel sees the card directly, so `tools/sd.ps1` is not
+  needed — just `mount`.
+
+- **The tar and path traps in §6 do not apply.** They are artifacts of GNU tar on Windows
+  drive letters.
+
+On an **arm64** builder (a Raspberry Pi, an Apple-silicon Linux VM) two artifact steps get
+simpler rather than harder: the tb-gateway image is a native `docker pull` with no
+`--platform` cross-pull, and the wheelhouse is a native build.
+
+**The one real trap on arm64:** the gateway runs Debian 12 / **Python 3.11**, so the wheels
+must be `cp311`. A bare `pip download` on a newer distro silently produces `cp312`/`cp313`
+wheels that the gateway's venv rejects at install time. Keep the explicit flags — they do
+not depend on the host interpreter:
+
+```bash
+docker run --rm -v "$PWD/cache:/out" python:3.11-slim bash -c "pip download -d /out/wheelhouse --only-binary=:all: --platform manylinux_2_17_aarch64 --platform manylinux_2_28_aarch64 --python-version 3.11 --implementation cp --abi cp311 -r /out/requirements-lean.txt"
+```
+
+No Docker on the builder? `skopeo copy docker://thingsboard/tb-gateway@sha256:<digest> docker-archive:tbgw.tar:thingsboard/tb-gateway:3.7-stable` produces an archive `docker load`
+accepts. Docker is the tested path.
