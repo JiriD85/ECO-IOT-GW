@@ -9,7 +9,6 @@ IoT Gateway für Raspberry Pi (Pi4, Pi5, CM4) basierend auf ThingsBoard IoT Gate
 - **VPN-Verbindung** (OpenVPN, WireGuard, Tailscale)
 - **Modem-Konfiguration** (Quectel LTE/4G)
 - **RS485-Konfiguration** für Modbus
-- **WLAN Access Point** für Setup
 - **Web-Terminal** (xterm.js)
 - **Live-Diagnose** (Modbus-Werte aus Gateway-Logs)
 - **Watchdog & Auto-Recovery**
@@ -24,7 +23,6 @@ IoT Gateway für Raspberry Pi (Pi4, Pi5, CM4) basierend auf ThingsBoard IoT Gate
 - Optionale Hardware:
   - Quectel LTE Modem (USB)
   - RS485 HAT oder USB-RS485 Adapter
-  - WLAN-Adapter für Access Point
 
 ## Installation
 
@@ -64,8 +62,7 @@ ECO-IOT-GW/
 │   └── package.json
 ├── config/                 # Konfigurationsdateien
 │   ├── nginx/              # Nginx Reverse Proxy
-│   ├── hostapd/            # WLAN AP
-│   └── dnsmasq/            # DHCP
+│   └── dnsmasq/            # DHCP (Altlast, ungenutzt – keine WLAN-Hardware)
 ├── systemd/                # Systemd Services
 ├── updates/                # OTA Update Scripts
 └── docker-compose.yml      # ThingsBoard Gateway
@@ -87,7 +84,6 @@ ECO-IOT-GW/
 | `/api/modem/status` | GET | Modem-Status |
 | `/api/modem/config` | GET/PUT | APN-Konfiguration |
 | `/api/serial/config` | GET/PUT | RS485-Einstellungen |
-| `/api/wifi/ap/status` | GET | AP-Status |
 | `/api/diagnostics/modbus` | GET | Live-Modbus-Werte |
 | `/api/watchdog/status` | GET | Watchdog-Status |
 | `/api/system/status` | GET | System-Informationen |
@@ -105,14 +101,12 @@ ECO-IOT-GW/
 - Fail2ban Integration
 - Firewall (ufw) mit Whitelist
 
-## WLAN Access Point
-
-Der Access Point startet automatisch für die Erstkonfiguration:
-- SSID: `ECO-IOT-GW-XXXX` (MAC-basiert)
-- IP: `192.168.4.1`
-- DHCP: `192.168.4.2 - 192.168.4.254`
-
 ## Entwicklung
+
+**Neu im Projekt?** [ONBOARDING.md](ONBOARDING.md) führt vom frischen `git clone` bis zum
+laufenden System — inklusive dem, was *nicht* im Repository liegt (Zugangsdaten, RESI-Image,
+Hardware).
+
 
 ### Backend
 
