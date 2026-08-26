@@ -539,32 +539,39 @@ const PHASES = [
 
   // ---------------- 1. Networking ----------------
   {
-    id: 'net', title: 'Networking — stable 10.10.10.1 cable link',
+    id: 'net', title: 'Networking — WAN (Ethernet/LTE auto) + 10.10.10.1 console',
     async detect(ctx) {
-      // done when eth0 carries 10.10.10.1, the SIM-forward guard is present, and the
-      // no-gateway dnsmasq conf exists (so the laptop keeps its own route).
-      const r = sh(ctx, 'ip -4 addr show eth0 2>/dev/null | grep -q "10.10.10.1/" && echo IP; ' +
-        (ctx.box.user === 'ecoadmin' ? 'sudo -n ' : `echo ${shq(ctx.cfg.box.password)} | sudo -S -p '' `) +
-        'nft list table inet eco_guard >/dev/null 2>&1 && echo NFT; ' +
-        'test -f /etc/NetworkManager/dnsmasq-shared.d/eco-no-gateway.conf && echo CONF');
-      const done = /IP/.test(r.stdout) && /NFT/.test(r.stdout) && /CONF/.test(r.stdout);
-      return { done, detail: done ? `eth0=10.10.10.1, SIM-forward blocked, no-gateway DHCP` : (ctx.box.host === '10.10.10.1' ? 'partial config on 10.10.10.1 — will reapply' : `box at ${ctx.box.host} — will lay down 10.10.10.1`) };
+      // Idempotency is about the CONFIG being laid down, not the current runtime IP: in
+      // the field eth0 may be a DHCP WAN client (no 10.10.10.1) and that is still "done".
+      // Done when both eth0 profiles exist, the mode-aware guard dispatcher is present,
+      // and the LTE raw_ip boot fix is installed.
+      const r = sh(ctx, 'nmcli -t -f NAME con show 2>/dev/null | grep -qx eth0-wan && echo WAN; ' +
+        'nmcli -t -f NAME con show 2>/dev/null | grep -qx eth0-direct && echo DIRECT; ' +
+        'test -f /etc/NetworkManager/dispatcher.d/50-eco-eth0-guard.sh && echo GUARD; ' +
+        'test -f /etc/udev/rules.d/99-eco-wwan-rawip.rules && echo RAWIP');
+      const lines = r.stdout.split(/\r?\n/).map(s => s.trim());
+      const has = k => lines.includes(k);
+      const done = has('WAN') && has('DIRECT') && has('GUARD') && has('RAWIP');
+      return { done, detail: done ? 'eth0-wan + eth0-direct + guard + LTE raw_ip fix in place'
+                                  : (ctx.box.host === '10.10.10.1' ? 'partial config — will (re)apply' : `box at ${ctx.box.host} — will lay down the WAN model`) };
     },
     async run(ctx) {
-      const src = path.join(PROV, 'setup-direct-ethernet.sh');
+      const netSrc = path.join(PROV, 'setup-networking.sh');
+      const rawipSrc = path.join(BOXDIR, 'install-lte-rawip.sh');
       // The link still flaps here (eth0 DHCP-retry loop), so the first copy can hit a
-      // down-moment — retry until a window opens, then apply.
+      // down-moment — retry until a window opens. Push both scripts now (we need the raw_ip
+      // one after eth0 is reconfigured, when the link may be briefly unavailable).
       let pushed = false;
       for (let i = 1; i <= 12 && !pushed; i++) {
-        try { scp(ctx, src, '/tmp/setup-direct-ethernet.sh'); pushed = true; }
+        try { scp(ctx, netSrc, '/tmp/setup-networking.sh'); scp(ctx, rawipSrc, '/tmp/install-lte-rawip.sh'); pushed = true; }
         catch (e) { info(`link down this pass (${i}/12) — ${String(e.message).split('\n')[0].slice(0, 60)}; retrying in 6s…`); await sleep(6000); }
       }
-      if (!pushed) throw new Error('could not copy the networking script — link-local never held (box eth0 flapping?)');
-      step('applying networking (detached — it drops eth0 as it switches over)…');
+      if (!pushed) throw new Error('could not copy the networking scripts — link-local never held (box eth0 flapping?)');
+      step('applying WAN model (eth0-wan DHCP → eth0-direct 10.10.10.1 fallback → LTE) — detached, drops eth0…');
       // run detached so dropping the current link doesn't kill our SSH mid-write
-      await stream(ctx, asRoot(ctx, 'chmod +x /tmp/setup-direct-ethernet.sh && nohup /tmp/setup-direct-ethernet.sh >/tmp/eco-net.log 2>&1 & echo started'));
+      await stream(ctx, asRoot(ctx, 'chmod +x /tmp/setup-networking.sh && nohup /tmp/setup-networking.sh >/tmp/eco-net.log 2>&1 & echo started'));
       const fe80Host = ctx.box.host;   // keep the link-local as a fallback
-      info('waiting 20s for eth0 to settle on 10.10.10.1 …');
+      info('waiting 20s for eth0 to re-evaluate (WAN DHCP attempt → falls back to 10.10.10.1)…');
       await sleep(20000);
       await renewCableAdapter(ctx);
       await sleep(4000);
@@ -579,24 +586,34 @@ const PHASES = [
         }
         return false;
       };
-      if (await tryReconnect(30, 3)) return;
-      // The switch to 10.10.10.1 sometimes leaves the laptop NIC on a stale link state that
-      // only a physical re-plug clears (Windows re-runs DHCP + resets the adapter on link-up).
-      // Ask ONCE for a cable re-plug, then renew + retry before falling back.
-      warn('box not answering on 10.10.10.1 after the switch — the cable adapter may be on a stale link.');
-      await ask(`  ${C.mag}?${C.r} Unplug the Ethernet cable, wait ~3s, plug it back in — then press ${C.b}Enter${C.r}. `);
-      info('re-plug acknowledged — renewing the adapter and retrying…');
-      await renewCableAdapter(ctx);
-      await sleep(4000);
-      if (await tryReconnect(20, 3)) return;
-      // last resort: the box is up but the laptop never got a 10.10.10.x lease — fall back
-      // to the link-local we came in on (if it still answers) so later phases can proceed.
-      ctx.box.host = fe80Host;
-      if (fe80Host !== '10.10.10.1' && sh(ctx, 'true', null, { retries: 0 }).code === 0) {
-        warn('no 10.10.10.x lease on the laptop — continuing over link-local (set a static 10.10.10.2/24 on the cable adapter for a stable link)');
-        return;
+      let linked = await tryReconnect(30, 3);
+      if (!linked) {
+        // The switch sometimes leaves the laptop NIC on a stale link state that only a
+        // physical re-plug clears (Windows re-runs DHCP + resets the adapter on link-up).
+        // Ask ONCE for a cable re-plug, then renew + retry before falling back.
+        warn('box not answering on 10.10.10.1 after the switch — the cable adapter may be on a stale link.');
+        await ask(`  ${C.mag}?${C.r} Unplug the Ethernet cable, wait ~3s, plug it back in — then press ${C.b}Enter${C.r}. `);
+        info('re-plug acknowledged — renewing the adapter and retrying…');
+        await renewCableAdapter(ctx);
+        await sleep(4000);
+        linked = await tryReconnect(20, 3);
       }
-      throw new Error('box did not come back on 10.10.10.1 (laptop got no 10.10.10.x lease). Set the cable adapter to DHCP or a static 10.10.10.2/24, then re-run.');
+      if (!linked) {
+        // last resort: fall back to the link-local we came in on (if it still answers)
+        ctx.box.host = fe80Host;
+        if (fe80Host !== '10.10.10.1' && sh(ctx, 'true', null, { retries: 0 }).code === 0) {
+          warn('no 10.10.10.x lease on the laptop — continuing over link-local (set a static 10.10.10.2/24 on the cable adapter for a stable link)');
+          linked = true;
+        }
+      }
+      if (!linked) throw new Error('box did not come back on 10.10.10.1 (laptop got no 10.10.10.x lease). Set the cable adapter to DHCP or a static 10.10.10.2/24, then re-run.');
+
+      // LTE reboot-proofing + immediate bring-up. Idempotent; also fixes raw_ip=N now so
+      // telemetry resumes without waiting for a reboot.
+      step('installing LTE raw_ip boot fix + bringing the modem up…');
+      const r = await stream(ctx, asRoot(ctx, 'chmod +x /tmp/install-lte-rawip.sh && /tmp/install-lte-rawip.sh'));
+      if (r.code !== 0) warn('LTE raw_ip fix reported an issue — see /tmp/install-lte-rawip on the box (continuing)');
+      ok('networking applied — Ethernet-WAN/LTE auto-failover + 10.10.10.1 console fallback');
     },
   },
 
