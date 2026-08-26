@@ -57,6 +57,14 @@ if [ -f "$STATE/masked.list" ]; then
   done < "$STATE/masked.list"
 fi
 if [ -f "$STATE/root.crontab.orig" ]; then crontab "$STATE/root.crontab.orig" && echo "restored root crontab (RESIvmachine @reboot)"; fi
+# re-enable the factory logins the 'harden' phase locked (if it ran)
+for u in resi resivm; do
+  if id "$u" >/dev/null 2>&1 && [ "$(passwd -S "$u" 2>/dev/null | awk '{print $2}')" = "L" ]; then
+    passwd -u "$u" 2>/dev/null && echo "unlocked $u password" || true
+  fi
+done
+rm -f /etc/ssh/sshd_config.d/eco-lock-resi.conf 2>/dev/null && \
+  { systemctl reload ssh 2>/dev/null || systemctl reload sshd 2>/dev/null || true; echo "restored SSH password login for resi,resivm"; }
 echo "RESI stack restored. Reboot to bring it fully back up."
 DG
 chmod 755 /usr/local/sbin/eco-downgrade.sh

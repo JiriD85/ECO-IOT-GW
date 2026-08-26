@@ -38,6 +38,16 @@ class TB {
     const page = await this.get(`/api/assetInfos/all?pageSize=20&page=0&includeCustomers=true&assetProfileId=${DIAGNOSTICKIT_PROFILE}&textSearch=${encodeURIComponent(code)}`);
     return (page.data || []).find(a => a.name === code) || (page.data || [])[0] || null;
   }
+  // list every DiagnosticKit asset (paged), for the interactive kit picker
+  async listKits(limit = 500) {
+    const out = [];
+    for (let page = 0; page < 50; page++) {
+      const p = await this.get(`/api/assetInfos/all?pageSize=50&page=${page}&includeCustomers=true&assetProfileId=${DIAGNOSTICKIT_PROFILE}&sortProperty=name&sortOrder=ASC`);
+      for (const a of (p.data || [])) out.push({ id: a.id.id, name: a.name, customer: a.customerTitle || a.customerName || '' });
+      if (!p.hasNext || out.length >= limit) break;
+    }
+    return out;
+  }
   async kitDevices(assetId) {
     const rel = await this.get(`/api/relations/info?fromId=${assetId}&fromType=ASSET`);
     const contains = (rel || []).filter(r => r.type === 'Contains' && r.to.entityType === 'DEVICE');
