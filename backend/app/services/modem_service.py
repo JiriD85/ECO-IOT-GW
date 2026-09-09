@@ -121,62 +121,75 @@ class ModemService:
             except Exception as e:
                 raise RuntimeError(f"AT command failed: {e}")
 
-    def get_status(self) -> ModemStatus:
-        """Get modem status."""
+    def _mmcli(self, args: list, timeout: float = 8.0) -> str:
+        """Run mmcli and return stdout (empty string on failure). The backend runs as
+        root, so no sudo is needed; ModemManager owns the Quectel over QMI, so this is the
+        correct status source (the raw AT ports are held by ModemManager and give
+        'Modem not found' if opened directly)."""
         try:
-            # Check if modem is present
-            port = self._find_modem_port()
-            if not port:
+            r = subprocess.run(["mmcli", *args], capture_output=True, text=True, timeout=timeout)
+            return (r.stdout or "") + (r.stderr or "")
+        except Exception as e:
+            logger.debug(f"mmcli {args} failed: {e}")
+            return ""
+
+    @staticmethod
+    def _first(pattern: str, text: str, group: int = 1):
+        m = re.search(pattern, text, re.IGNORECASE)
+        return m.group(group).strip() if m else None
+
+    def _modem_path(self) -> Optional[str]:
+        """The first ModemManager modem path (/org/.../Modem/N), or None if absent."""
+        return self._first(r'(/org/freedesktop/ModemManager1/Modem/\d+)', self._mmcli(["-L"]))
+
+    def get_status(self) -> ModemStatus:
+        """Get modem status via ModemManager (mmcli)."""
+        try:
+            if not self._modem_path():
+                return ModemStatus(connected=False)
+            out = self._mmcli(["-m", "any"])
+            if not out:
                 return ModemStatus(connected=False)
 
-            # Get registration status
-            reg_response = self.send_at_command("AT+CREG?")
-            connected = ",1" in reg_response or ",5" in reg_response
+            state = (self._first(r'\bstate:\s*([a-z-]+)', out) or "").lower()
+            registration = (self._first(r'registration:\s*([a-z-]+)', out) or "").lower()
+            # "connected" = a data bearer is up; a registered modem (home/roaming) also counts
+            connected = state == "connected" or registration in ("home", "roaming")
 
-            # Get signal quality
-            signal_response = self.send_at_command("AT+CSQ")
-            signal_strength = signal_quality = None
-            match = re.search(r'\+CSQ:\s*(\d+)', signal_response)
-            if match:
-                csq = int(match.group(1))
-                if csq != 99:
-                    # Convert CSQ to dBm: dBm = -113 + (CSQ * 2)
-                    signal_strength = -113 + (csq * 2)
-                    # Quality percentage
-                    signal_quality = min(100, max(0, (csq * 100) // 31))
+            # signal quality % (mmcli reports a percentage on the modem summary)
+            signal_quality = None
+            q = self._first(r'signal quality:\s*(\d+)%', out)
+            if q is not None:
+                signal_quality = int(q)
 
-            # Get network type
-            network_response = self.send_at_command("AT+COPS?")
-            network_type = None
-            if ',7' in network_response:
-                network_type = "LTE"
-            elif ',2' in network_response:
-                network_type = "3G"
-            elif ',0' in network_response:
-                network_type = "2G"
+            # signal strength in dBm from the periodic signal poll (RSSI)
+            signal_strength = None
+            sig = self._mmcli(["-m", "any", "--signal-get"])
+            rssi = self._first(r'rssi:\s*(-?\d+(?:[.,]\d+)?)\s*dBm', sig)
+            if rssi is not None:
+                try:
+                    signal_strength = int(round(float(rssi.replace(",", "."))))
+                except ValueError:
+                    pass
 
-            # Get carrier
-            carrier = None
-            match = re.search(r'"([^"]+)"', network_response)
-            if match:
-                carrier = match.group(1)
+            # access technology → network type label
+            atech = (self._first(r'access tech(?:nology)?:\s*([a-z0-9]+)', out) or "").lower()
+            network_type = {"lte": "LTE", "umts": "3G", "hspa": "3G", "gsm": "2G", "edge": "2G"}.get(atech)
+            if not network_type and atech:
+                network_type = atech.upper()
 
-            # Get IMEI
-            imei_response = self.send_at_command("AT+GSN")
-            imei = None
-            for line in imei_response.split('\n'):
-                line = line.strip()
-                if line.isdigit() and len(line) == 15:
-                    imei = line
-                    break
+            carrier = self._first(r'operator name:\s*(.+)', out)
+            imei = self._first(r'equipment id:\s*(\d+)', out)
 
-            # Get IP address (if connected)
+            # IP address from the CONNECTED bearer (a modem can list an idle "initial"
+            # bearer too, so pick the one that is actually connected).
             ip_address = None
-            if connected:
-                ip_response = self.send_at_command("AT+CGPADDR=1")
-                match = re.search(r'"(\d+\.\d+\.\d+\.\d+)"', ip_response)
-                if match:
-                    ip_address = match.group(1)
+            for bnum in re.findall(r'/Bearer/(\d+)', out):
+                bout = self._mmcli(["-b", bnum])
+                if re.search(r'connected:\s*yes', bout, re.IGNORECASE):
+                    ip_address = self._first(r'address:\s*(\d+\.\d+\.\d+\.\d+)', bout)
+                    if ip_address:
+                        break
 
             return ModemStatus(
                 connected=connected,
@@ -185,7 +198,7 @@ class ModemService:
                 network_type=network_type,
                 carrier=carrier,
                 imei=imei,
-                ip_address=ip_address
+                ip_address=ip_address,
             )
 
         except Exception as e:
@@ -193,29 +206,27 @@ class ModemService:
             return ModemStatus(connected=False)
 
     def get_signal_info(self) -> Dict[str, Any]:
-        """Get detailed signal information."""
+        """Get detailed signal information via ModemManager (mmcli)."""
         info = {}
-
         try:
-            # Basic signal quality
-            csq = self.send_at_command("AT+CSQ")
-            info["csq_response"] = csq
-
-            # Extended signal quality (Quectel specific)
-            qcsq = self.send_at_command("AT+QCSQ")
-            info["qcsq_response"] = qcsq
-
-            # Serving cell info (Quectel specific)
-            qeng = self.send_at_command("AT+QENG=\"servingcell\"")
-            info["serving_cell"] = qeng
-
-            # Network registration
-            creg = self.send_at_command("AT+CREG?")
-            info["registration"] = creg
-
+            if not self._modem_path():
+                return {"error": "Modem not found"}
+            # arm periodic signal refresh, then read the LTE metrics
+            self._mmcli(["-m", "any", "--signal-setup=5"])
+            sig = self._mmcli(["-m", "any", "--signal-get"])
+            info["signal"] = {
+                "rssi": self._first(r'rssi:\s*(-?\d+(?:[.,]\d+)?)', sig),
+                "rsrp": self._first(r'rsrp:\s*(-?\d+(?:[.,]\d+)?)', sig),
+                "rsrq": self._first(r'rsrq:\s*(-?\d+(?:[.,]\d+)?)', sig),
+                "snr": self._first(r's(?:n|-n)r?[^:]*:\s*(-?\d+(?:[.,]\d+)?)', sig),
+            }
+            modem = self._mmcli(["-m", "any"])
+            info["state"] = self._first(r'\bstate:\s*([a-z-]+)', modem)
+            info["registration"] = self._first(r'registration:\s*([a-z-]+)', modem)
+            info["operator"] = self._first(r'operator name:\s*(.+)', modem)
+            info["access_tech"] = self._first(r'access tech(?:nology)?:\s*([a-z0-9]+)', modem)
         except Exception as e:
             info["error"] = str(e)
-
         return info
 
     def get_config(self) -> ModemConfig:
@@ -309,12 +320,18 @@ class ModemService:
             logger.warning(f"Error disconnecting modem: {e}")
 
     def reset(self):
-        """Reset modem."""
-        try:
-            self.send_at_command("AT+CFUN=1,1")
-            logger.info("Modem reset initiated")
-        except Exception as e:
-            raise RuntimeError(f"Failed to reset modem: {e}")
+        """Reset modem via ModemManager (mmcli --reset). Uses MM instead of a raw AT
+        'AT+CFUN=1,1': the AT ports are held by ModemManager, so the AT path both fails
+        ('Modem not found') and — if it ever succeeded — would fight MM and drop the LTE
+        link. If no modem is present, do nothing rather than raise (the watchdog calls this)."""
+        if not self._modem_path():
+            logger.info("Modem reset skipped: no ModemManager modem present")
+            return
+        out = self._mmcli(["-m", "any", "--reset"], timeout=20)
+        if "successfully" in out.lower() or out.strip() == "":
+            logger.info("Modem reset initiated via ModemManager")
+        else:
+            raise RuntimeError(f"Failed to reset modem: {out.strip()[:200]}")
 
     def check_sms_ready(self) -> Tuple[bool, str]:
         """

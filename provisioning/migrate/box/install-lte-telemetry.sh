@@ -21,7 +21,10 @@ CFGDIR=/opt/eco/tb-gateway/config
 LTEDIR="$CFGDIR/lte"
 STATSDIR="$CFGDIR/statistics"
 BIN=/opt/eco/bin/eco-lte-signal.sh
-PERIOD="${LTE_STATS_PERIOD:-900}"   # seconds between MQTT pushes (metered SIM)
+PERIOD="${LTE_STATS_PERIOD:-120}"   # seconds between MQTT pushes (metered SIM). 120s keeps the
+                                    # dashboard's modem tile fresh (esp. right after a reboot) while
+                                    # the payload is tiny (~600 B). Was 900s: too slow, and a box that
+                                    # reboots inside one window never pushed, so LTE_* looked dead.
 
 [ "$(id -u)" = 0 ] || { echo "must run as root"; exit 1; }
 command -v python3 >/dev/null || { echo "python3 required on the host for the JSON patch"; exit 1; }
