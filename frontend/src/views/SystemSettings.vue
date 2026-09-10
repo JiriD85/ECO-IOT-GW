@@ -80,53 +80,8 @@
       </v-col>
     </v-row>
 
-    <!-- Updates & Actions -->
+    <!-- System Actions -->
     <v-row class="mt-4">
-      <v-col cols="12" md="6">
-        <v-card>
-          <v-card-title>Updates</v-card-title>
-          <v-card-text>
-            <v-list density="compact">
-              <v-list-item>
-                <v-list-item-title>Current Version</v-list-item-title>
-                <template v-slot:append>{{ updateStatus?.current_version || '--' }}</template>
-              </v-list-item>
-              <v-list-item v-if="updateStatus?.latest_version">
-                <v-list-item-title>Latest Version</v-list-item-title>
-                <template v-slot:append>{{ updateStatus.latest_version }}</template>
-              </v-list-item>
-            </v-list>
-
-            <v-alert
-              v-if="updateStatus?.update_available"
-              type="info"
-              variant="tonal"
-              class="mt-4"
-            >
-              Update available: {{ updateStatus.latest_version }}
-            </v-alert>
-          </v-card-text>
-          <v-card-actions>
-            <v-btn
-              color="warning"
-              @click="rollback"
-              :loading="actionLoading === 'rollback'"
-            >
-              Rollback
-            </v-btn>
-            <v-spacer></v-spacer>
-            <v-btn
-              color="primary"
-              @click="startUpdate"
-              :loading="actionLoading === 'update'"
-              :disabled="!updateStatus?.update_available"
-            >
-              Update Now
-            </v-btn>
-          </v-card-actions>
-        </v-card>
-      </v-col>
-
       <!-- System Actions -->
       <v-col cols="12" md="6">
         <v-card>
@@ -186,7 +141,6 @@ const showSnackbar = inject('showSnackbar')
 const systemStatus = ref(null)
 const watchdogStatus = ref(null)
 const watchdogEnabled = ref(false)
-const updateStatus = ref(null)
 const actionLoading = ref(null)
 
 const confirmDialog = ref(false)
@@ -205,15 +159,13 @@ const formatUptime = (seconds) => {
 
 const fetchData = async () => {
   try {
-    const [sysRes, wdRes, updateRes] = await Promise.all([
+    const [sysRes, wdRes] = await Promise.all([
       systemApi.getStatus(),
-      watchdogApi.getStatus(),
-      systemApi.getUpdateStatus()
+      watchdogApi.getStatus()
     ])
     systemStatus.value = sysRes.data
     watchdogStatus.value = wdRes.data
     watchdogEnabled.value = wdRes.data.enabled
-    updateStatus.value = updateRes.data
   } catch (error) {
     console.error('Failed to fetch system data:', error)
   }
@@ -264,30 +216,6 @@ const executeConfirmedAction = async () => {
     confirmDialog.value = false
   } catch (error) {
     showSnackbar(error.response?.data?.detail || 'Action failed', 'error')
-  } finally {
-    actionLoading.value = null
-  }
-}
-
-const startUpdate = async () => {
-  try {
-    actionLoading.value = 'update'
-    await systemApi.startUpdate()
-    showSnackbar('Update started')
-  } catch (error) {
-    showSnackbar(error.response?.data?.detail || 'Update failed', 'error')
-  } finally {
-    actionLoading.value = null
-  }
-}
-
-const rollback = async () => {
-  try {
-    actionLoading.value = 'rollback'
-    await systemApi.rollback()
-    showSnackbar('Rollback initiated')
-  } catch (error) {
-    showSnackbar(error.response?.data?.detail || 'Rollback failed', 'error')
   } finally {
     actionLoading.value = null
   }

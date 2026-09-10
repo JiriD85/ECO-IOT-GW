@@ -66,7 +66,7 @@ def get_cpu_temperature() -> Optional[float]:
 
 
 @router.get("/status", response_model=SystemStatus)
-async def get_system_status(user: UserInfo = Depends(get_current_user)):
+def get_system_status(user: UserInfo = Depends(get_current_user)):
     """
     Get system status information.
 
@@ -239,22 +239,7 @@ async def start_update(
             detail="Admin access required"
         )
 
-    try:
-        from ..services.update_service import update_service
-
-        log_audit(user.username, "system_update", client_ip,
-                 {"version": data.version})
-
-        update_service.start_update(data.version)
-        return SuccessResponse(message="Update started")
-
-    except Exception as e:
-        log_audit(user.username, "system_update", client_ip,
-                 {"error": str(e)}, success=False)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
-        )
+    raise HTTPException(status_code=501, detail="Install releases with provisioning/migrate/tui.js")
 
 
 @router.post("/rollback", response_model=SuccessResponse)
@@ -275,21 +260,7 @@ async def rollback_update(
             detail="Admin access required"
         )
 
-    try:
-        from ..services.update_service import update_service
-
-        log_audit(user.username, "system_rollback", client_ip)
-
-        update_service.rollback()
-        return SuccessResponse(message="Rollback initiated")
-
-    except Exception as e:
-        log_audit(user.username, "system_rollback", client_ip,
-                 {"error": str(e)}, success=False)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
-        )
+    raise HTTPException(status_code=501, detail="Software rollback is not supported by this API")
 
 
 @router.get("/hostname")

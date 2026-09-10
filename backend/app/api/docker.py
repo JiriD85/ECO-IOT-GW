@@ -56,7 +56,7 @@ def log_audit(username: str, action: str, ip: str, details: dict = None, success
     response_model=DockerComposeResponse,
     responses={404: {"model": ErrorResponse}}
 )
-async def get_compose(user: UserInfo = Depends(get_current_user)):
+def get_compose(user: UserInfo = Depends(get_current_user)):
     """
     Get current docker-compose.yml content.
 
@@ -85,7 +85,7 @@ async def get_compose(user: UserInfo = Depends(get_current_user)):
     response_model=SuccessResponse,
     responses={400: {"model": ErrorResponse}}
 )
-async def upload_compose(
+def upload_compose(
     request: Request,
     data: DockerComposeRequest,
     user: UserInfo = Depends(get_current_user)
@@ -183,7 +183,7 @@ async def upload_compose_file(
     response_model=SuccessResponse,
     responses={404: {"model": ErrorResponse}}
 )
-async def delete_compose(
+def delete_compose(
     request: Request,
     user: UserInfo = Depends(get_current_user)
 ):
@@ -213,7 +213,7 @@ async def delete_compose(
     "/status",
     response_model=DockerStatusResponse
 )
-async def get_status(user: UserInfo = Depends(get_current_user)):
+def get_status(user: UserInfo = Depends(get_current_user)):
     """
     Get Docker status and container information.
 
@@ -233,7 +233,7 @@ async def get_status(user: UserInfo = Depends(get_current_user)):
     response_model=SuccessResponse,
     responses={400: {"model": ErrorResponse}, 404: {"model": ErrorResponse}}
 )
-async def compose_up(
+def compose_up(
     request: Request,
     user: UserInfo = Depends(get_current_user)
 ):
@@ -270,7 +270,7 @@ async def compose_up(
     "/down",
     response_model=SuccessResponse
 )
-async def compose_down(
+def compose_down(
     request: Request,
     user: UserInfo = Depends(get_current_user)
 ):
@@ -298,7 +298,7 @@ async def compose_down(
     "/restart",
     response_model=SuccessResponse
 )
-async def compose_restart(
+def compose_restart(
     request: Request,
     user: UserInfo = Depends(get_current_user)
 ):
@@ -327,7 +327,7 @@ async def compose_restart(
     "/logs/{container_name}",
     responses={404: {"model": ErrorResponse}}
 )
-async def get_container_logs(
+def get_container_logs(
     container_name: str,
     lines: int = 100,
     user: UserInfo = Depends(get_current_user)
@@ -354,7 +354,7 @@ async def get_container_logs(
     response_model=SuccessResponse,
     responses={404: {"model": ErrorResponse}}
 )
-async def start_container(
+def start_container(
     request: Request,
     container_name: str,
     user: UserInfo = Depends(get_current_user)
@@ -380,7 +380,7 @@ async def start_container(
     response_model=SuccessResponse,
     responses={404: {"model": ErrorResponse}}
 )
-async def stop_container(
+def stop_container(
     request: Request,
     container_name: str,
     user: UserInfo = Depends(get_current_user)
@@ -406,7 +406,7 @@ async def stop_container(
     response_model=SuccessResponse,
     responses={404: {"model": ErrorResponse}}
 )
-async def restart_container(
+def restart_container(
     request: Request,
     container_name: str,
     user: UserInfo = Depends(get_current_user)

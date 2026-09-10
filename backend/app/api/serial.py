@@ -47,7 +47,7 @@ def log_audit(username: str, action: str, ip: str, details: dict = None, success
 
 
 @router.get("/ports", response_model=List[SerialPort])
-async def list_ports(user: UserInfo = Depends(get_current_user)):
+def list_ports(user: UserInfo = Depends(get_current_user)):
     """
     List available serial ports.
 
@@ -63,7 +63,7 @@ async def list_ports(user: UserInfo = Depends(get_current_user)):
 
 
 @router.get("/config", response_model=SerialConfig)
-async def get_config(user: UserInfo = Depends(get_current_user)):
+def get_config(user: UserInfo = Depends(get_current_user)):
     """
     Get current RS485 serial configuration.
     """
@@ -77,7 +77,7 @@ async def get_config(user: UserInfo = Depends(get_current_user)):
 
 
 @router.put("/config", response_model=SuccessResponse)
-async def set_config(
+def set_config(
     request: Request,
     config: SerialConfig,
     user: UserInfo = Depends(get_current_user)
@@ -92,47 +92,9 @@ async def set_config(
     - **stopbits**: Stop bits (1 or 2)
     - **timeout**: Read timeout in seconds
     """
-    client_ip = get_client_ip(request)
-
-    try:
-        serial_service.set_config(config)
-        log_audit(user.username, "set_serial_config", client_ip, {
-            "port": config.port,
-            "baudrate": config.baudrate,
-            "parity": config.parity
-        })
-        return SuccessResponse(message="Serial configuration updated")
-
-    except Exception as e:
-        log_audit(user.username, "set_serial_config", client_ip,
-                 {"error": str(e)}, success=False)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
-        )
+    raise HTTPException(status_code=410, detail="Serial settings are managed by the active ThingsBoard connector")
 
 
 @router.post("/test", response_model=SuccessResponse)
-async def test_port(
-    request: Request,
-    user: UserInfo = Depends(get_current_user)
-):
-    """
-    Test the configured serial port.
-
-    Opens the port with current settings to verify it works.
-    """
-    client_ip = get_client_ip(request)
-
-    try:
-        serial_service.test_port()
-        log_audit(user.username, "test_serial_port", client_ip)
-        return SuccessResponse(message="Serial port test successful")
-
-    except Exception as e:
-        log_audit(user.username, "test_serial_port", client_ip,
-                 {"error": str(e)}, success=False)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
-        )
+def test_port(request: Request, user: UserInfo = Depends(get_current_user)):
+    raise HTTPException(status_code=410, detail="Direct port tests are retired; use the live meter status")

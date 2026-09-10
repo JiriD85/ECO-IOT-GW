@@ -168,6 +168,19 @@ class ThingsBoardService:
 
     def _load_config(self) -> Optional[Dict[str, Any]]:
         """Load configuration from disk."""
+        if self._gateway_config_file.exists():
+            active = json.loads(self._gateway_config_file.read_text())['thingsboard']
+            security = active.get('security', {})
+            kind = security.get('type', 'accessToken')
+            result = {'host': active.get('host'), 'port': active.get('port', 1883),
+                      'security_type': {'accessToken': 'access_token', 'tlsAccessToken': 'tls_access_token',
+                                        'usernamePassword': 'username_password'}.get(kind, 'access_token'),
+                      'use_tls': bool(active.get('ssl') or kind == 'tlsAccessToken')}
+            for source, target in [('accessToken', 'access_token'), ('username', 'username'), ('password', 'password')]:
+                if security.get(source):
+                    result[target] = encrypt_sensitive_data(security[source])
+            result['client_id'] = security.get('clientId')
+            return result
         if not self._config_file.exists():
             return None
         try:
@@ -204,43 +217,41 @@ class ThingsBoardService:
 
     def save_config(self, config: ThingsBoardConfig):
         """Save ThingsBoard configuration."""
-        config_data = {
-            "host": config.host,
-            "port": config.port,
-            "security_type": config.security_type.value,
-            "use_tls": config.use_tls,
-        }
-
-        # Handle security credentials
-        if config.security_type == ThingsBoardSecurityType.ACCESS_TOKEN:
-            if config.access_token:
-                config_data["access_token"] = encrypt_sensitive_data(config.access_token)
-
-        elif config.security_type == ThingsBoardSecurityType.TLS_ACCESS_TOKEN:
-            config_data["use_tls"] = True
-            if config.access_token:
-                config_data["access_token"] = encrypt_sensitive_data(config.access_token)
-
-        elif config.security_type == ThingsBoardSecurityType.USERNAME_PASSWORD:
-            if config.client_id:
-                config_data["client_id"] = config.client_id
-            if config.username:
-                config_data["username"] = encrypt_sensitive_data(config.username)
-            if config.password:
-                config_data["password"] = encrypt_sensitive_data(config.password)
-
-        # Save CA certificate if provided
-        if config.ca_cert:
-            self._ca_cert_file.write_text(config.ca_cert)
-            os.chmod(self._ca_cert_file, 0o600)
-            config_data["ca_cert_path"] = str(self._ca_cert_file)
-
-        self._save_config(config_data)
-
-        # Update docker-compose.yml environment variables
-        self._update_docker_compose(config_data)
-
-        logger.info("ThingsBoard configuration saved")
+        if not self._gateway_config_file.exists():
+            raise RuntimeError("Install the gateway with tui.js before changing its connection")
+        active = json.loads(self._gateway_config_file.read_text())
+        tb = active['thingsboard']
+        previous = self._load_config()
+        # Preserve the installed TLS configuration; certificate/type migration requires
+        # a tested gateway release rather than guessed security keys.
+        if config.ca_cert or (previous['use_tls'] and config.security_type.value != previous['security_type']) or config.use_tls != previous['use_tls'] or config.security_type == ThingsBoardSecurityType.TLS_ACCESS_TOKEN and previous['security_type'] != 'tls_access_token':
+            raise RuntimeError("TLS changes require gateway provisioning; existing TLS settings were retained")
+        security = dict(tb.get('security', {}))
+        kinds = {'access_token': 'accessToken', 'tls_access_token': 'tlsAccessToken', 'username_password': 'usernamePassword'}
+        kind = kinds[config.security_type.value]
+        if security.get('type') != kind:
+            security = {'type': kind}
+        pairs = [('access_token', 'accessToken')] if kind != 'usernamePassword' else [('username', 'username'), ('password', 'password'), ('client_id', 'clientId')]
+        for field, key in pairs:
+            value = getattr(config, field)
+            if value:
+                security[key] = value
+        if not (security.get('accessToken') or security.get('username')):
+            raise ValueError("Credentials are required when changing authentication type")
+        tb.update(host=config.host, port=config.port, security=security)
+        # Write only connection fields; retain observer, devices, timing and statistics.
+        import tempfile
+        mode = self._gateway_config_file.stat()
+        fd, temporary = tempfile.mkstemp(dir=self._gateway_config_file.parent)
+        try:
+            with os.fdopen(fd, 'w') as stream:
+                json.dump(active, stream, indent=2)
+            os.chmod(temporary, mode.st_mode & 0o777)
+            if hasattr(os, 'chown'):
+                os.chown(temporary, mode.st_uid, mode.st_gid)
+            os.replace(temporary, self._gateway_config_file)
+        finally:
+            Path(temporary).unlink(missing_ok=True)
 
     def _update_docker_compose(self, config_data: Dict[str, Any]):
         """Update the docker-compose.yml environment variables for ThingsBoard Gateway."""
@@ -535,77 +546,18 @@ volumes:
     def deploy_gateway(self) -> Dict[str, Any]:
         """Generate docker-compose.yml and start the gateway."""
         try:
-            config_data = self._load_config()
-
-            if not config_data:
-                return {"success": False, "error": "No ThingsBoard configuration found. Please save configuration first."}
-
-            # Ensure docker-compose directory exists
-            settings.DOCKER_COMPOSE_DIR.mkdir(parents=True, exist_ok=True)
-
-            # Generate and write docker-compose.yml
-            compose_content = self.generate_docker_compose(config_data)
-            self._docker_compose_file.write_text(compose_content)
-
-            logger.info(f"Docker compose file written to {self._docker_compose_file}")
-
-            # Run docker-compose up
-            result = subprocess.run(
-                ["docker", "compose", "-f", str(self._docker_compose_file), "up", "-d"],
-                capture_output=True,
-                text=True,
-                timeout=120,
-                cwd=str(settings.DOCKER_COMPOSE_DIR)
-            )
-
-            if result.returncode != 0:
-                logger.error(f"Docker compose up failed: {result.stderr}")
-                return {"success": False, "error": f"Failed to start gateway: {result.stderr}"}
-
-            logger.info("ThingsBoard Gateway deployed successfully")
-            return {"success": True, "message": "Gateway deployed and started successfully"}
-
-        except subprocess.TimeoutExpired:
-            return {"success": False, "error": "Timeout starting gateway"}
-        except Exception as e:
-            logger.error(f"Failed to deploy gateway: {e}")
-            return {"success": False, "error": str(e)}
+            subprocess.run(['docker', 'start', 'tb-gateway'], check=True, capture_output=True, timeout=60)
+            return {'success': True, 'message': 'Installed gateway started'}
+        except Exception:
+            return {'success': False, 'error': 'Could not start the installed gateway. Use tui.js to install or repair it.'}
 
     def stop_gateway(self) -> Dict[str, Any]:
         """Stop the ThingsBoard Gateway."""
         try:
-            if not self._docker_compose_file.exists():
-                # Try stopping by container name
-                result = subprocess.run(
-                    ["docker", "stop", "tb-gateway"],
-                    capture_output=True,
-                    text=True,
-                    timeout=30
-                )
-                if result.returncode == 0:
-                    return {"success": True, "message": "Gateway stopped"}
-                return {"success": False, "error": "No gateway running"}
-
-            result = subprocess.run(
-                ["docker", "compose", "-f", str(self._docker_compose_file), "down"],
-                capture_output=True,
-                text=True,
-                timeout=60,
-                cwd=str(settings.DOCKER_COMPOSE_DIR)
-            )
-
-            if result.returncode != 0:
-                logger.error(f"Docker compose down failed: {result.stderr}")
-                return {"success": False, "error": f"Failed to stop gateway: {result.stderr}"}
-
-            logger.info("ThingsBoard Gateway stopped")
-            return {"success": True, "message": "Gateway stopped successfully"}
-
-        except subprocess.TimeoutExpired:
-            return {"success": False, "error": "Timeout stopping gateway"}
-        except Exception as e:
-            logger.error(f"Failed to stop gateway: {e}")
-            return {"success": False, "error": str(e)}
+            subprocess.run(['docker', 'stop', 'tb-gateway'], check=True, capture_output=True, timeout=60)
+            return {'success': True, 'message': 'Gateway stopped'}
+        except Exception:
+            return {'success': False, 'error': 'Could not stop the installed gateway'}
 
     def get_gateway_status(self) -> Dict[str, Any]:
         """Get detailed gateway container status."""

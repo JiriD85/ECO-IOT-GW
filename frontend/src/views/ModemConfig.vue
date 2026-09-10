@@ -3,7 +3,7 @@
       <!-- Status Card -->
       <v-col cols="12" md="6">
         <v-card>
-          <v-card-title>Connection Status</v-card-title>
+          <v-card-title>Connection Status <v-btn variant="text" size="small" @click="fetchData">Refresh status</v-btn></v-card-title>
           <v-card-text>
             <v-list>
               <v-list-item>
@@ -203,7 +203,7 @@ const showPassword = ref(false)
 const showPin = ref(false)
 const actionLoading = ref(null)
 
-let refreshInterval = null
+
 
 const signalColor = computed(() => {
   const quality = status.value?.signal_quality || 0
@@ -280,12 +280,8 @@ const resetModem = async () => {
 
 onMounted(() => {
   fetchData()
-  refreshInterval = setInterval(fetchData, 10000)
+
 })
 
-onUnmounted(() => {
-  if (refreshInterval) {
-    clearInterval(refreshInterval)
-  }
-})
+
 </script>

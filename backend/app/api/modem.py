@@ -51,7 +51,7 @@ def log_audit(username: str, action: str, ip: str, details: dict = None, success
 
 
 @router.get("/status", response_model=ModemStatus)
-async def get_modem_status(user: UserInfo = Depends(get_current_user)):
+def get_modem_status(user: UserInfo = Depends(get_current_user)):
     """
     Get modem status and signal information.
 
@@ -74,14 +74,14 @@ async def get_modem_status(user: UserInfo = Depends(get_current_user)):
 
 
 @router.get("/config", response_model=ModemConfig)
-async def get_modem_config(user: UserInfo = Depends(get_current_user)):
+def get_modem_config(user: UserInfo = Depends(get_current_user)):
     """
     Get current modem configuration.
 
     Note: Password and PIN are not returned for security.
     """
     try:
-        config = modem_service.get_config()
+        config = modem_service.get_config().model_copy()
         # Mask sensitive fields
         if config.password:
             config.password = "********"
@@ -97,7 +97,7 @@ async def get_modem_config(user: UserInfo = Depends(get_current_user)):
 
 
 @router.put("/config", response_model=SuccessResponse)
-async def set_modem_config(
+def set_modem_config(
     request: Request,
     config: ModemConfig,
     user: UserInfo = Depends(get_current_user)
@@ -137,7 +137,7 @@ async def set_modem_config(
 
 
 @router.post("/connect", response_model=SuccessResponse)
-async def connect_modem(
+def connect_modem(
     request: Request,
     user: UserInfo = Depends(get_current_user)
 ):
@@ -163,7 +163,7 @@ async def connect_modem(
 
 
 @router.post("/disconnect", response_model=SuccessResponse)
-async def disconnect_modem(
+def disconnect_modem(
     request: Request,
     user: UserInfo = Depends(get_current_user)
 ):
@@ -185,7 +185,7 @@ async def disconnect_modem(
 
 
 @router.post("/reset", response_model=SuccessResponse)
-async def reset_modem(
+def reset_modem(
     request: Request,
     user: UserInfo = Depends(get_current_user)
 ):
@@ -211,7 +211,7 @@ async def reset_modem(
 
 
 @router.get("/signal")
-async def get_signal(user: UserInfo = Depends(get_current_user)):
+def get_signal(user: UserInfo = Depends(get_current_user)):
     """
     Get detailed signal information.
 
@@ -227,7 +227,7 @@ async def get_signal(user: UserInfo = Depends(get_current_user)):
 
 
 @router.post("/at")
-async def send_at_command(
+def send_at_command(
     request: Request,
     command: str,
     user: UserInfo = Depends(get_current_user)

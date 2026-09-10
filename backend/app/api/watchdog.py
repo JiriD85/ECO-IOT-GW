@@ -46,7 +46,7 @@ def log_audit(username: str, action: str, ip: str, details: dict = None, success
 
 
 @router.get("/status", response_model=WatchdogStatus)
-async def get_watchdog_status(user: UserInfo = Depends(get_current_user)):
+def get_watchdog_status(user: UserInfo = Depends(get_current_user)):
     """
     Get watchdog status for all monitored services.
 
@@ -66,7 +66,7 @@ async def get_watchdog_status(user: UserInfo = Depends(get_current_user)):
 
 
 @router.get("/config", response_model=WatchdogConfig)
-async def get_watchdog_config(user: UserInfo = Depends(get_current_user)):
+def get_watchdog_config(user: UserInfo = Depends(get_current_user)):
     """
     Get watchdog configuration.
 
@@ -83,7 +83,7 @@ async def get_watchdog_config(user: UserInfo = Depends(get_current_user)):
 
 
 @router.put("/config", response_model=SuccessResponse)
-async def set_watchdog_config(
+def set_watchdog_config(
     request: Request,
     config: WatchdogConfig,
     user: UserInfo = Depends(get_current_user)
@@ -123,7 +123,7 @@ async def set_watchdog_config(
 
 
 @router.post("/enable", response_model=SuccessResponse)
-async def enable_watchdog(
+def enable_watchdog(
     request: Request,
     user: UserInfo = Depends(get_current_user)
 ):
@@ -131,7 +131,7 @@ async def enable_watchdog(
     client_ip = get_client_ip(request)
 
     try:
-        watchdog_service.start()
+        watchdog_service.set_enabled(True)
         log_audit(user.username, "enable_watchdog", client_ip)
         return SuccessResponse(message="Watchdog enabled")
 
@@ -145,7 +145,7 @@ async def enable_watchdog(
 
 
 @router.post("/disable", response_model=SuccessResponse)
-async def disable_watchdog(
+def disable_watchdog(
     request: Request,
     user: UserInfo = Depends(get_current_user)
 ):
@@ -153,7 +153,7 @@ async def disable_watchdog(
     client_ip = get_client_ip(request)
 
     try:
-        watchdog_service.stop()
+        watchdog_service.set_enabled(False)
         log_audit(user.username, "disable_watchdog", client_ip)
         return SuccessResponse(message="Watchdog disabled")
 
@@ -167,7 +167,7 @@ async def disable_watchdog(
 
 
 @router.post("/reset", response_model=SuccessResponse)
-async def reset_counters(
+def reset_counters(
     request: Request,
     user: UserInfo = Depends(get_current_user)
 ):
@@ -189,7 +189,7 @@ async def reset_counters(
 
 
 @router.post("/trigger/{service_name}", response_model=SuccessResponse)
-async def trigger_recovery(
+def trigger_recovery(
     request: Request,
     service_name: str,
     user: UserInfo = Depends(get_current_user)

@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import api from './api'
+import { clearApiCache } from './cache'
 
 export const useAuthStore = defineStore('auth', () => {
   const accessToken = ref(localStorage.getItem('accessToken') || null)
@@ -25,6 +26,10 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   const clearTokens = () => {
+    clearApiCache()
+    identity.value = null
+    authMethod.value = null
+    sessionChecked.value = false
     accessToken.value = null
     refreshToken.value = null
     user.value = null
@@ -98,7 +103,7 @@ export const useAuthStore = defineStore('auth', () => {
       const response = await api.get('/api/auth/me')
       user.value = response.data
     } catch (error) {
-      clearTokens()
+      if (error.response?.status === 401 || error.response?.status === 403) clearTokens()
     }
   }
 

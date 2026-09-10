@@ -20,7 +20,7 @@ const routes = [
   {
     path: '/meters',
     name: 'Meters',
-    component: () => import('../views/Meters.vue')
+    redirect: '/dashboard'
   },
   {
     path: '/connector',

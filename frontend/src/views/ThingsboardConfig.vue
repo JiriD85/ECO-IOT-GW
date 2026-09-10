@@ -105,7 +105,7 @@
               @click="deployGateway"
             >
               <v-icon start>mdi-play</v-icon>
-              Deploy Gateway
+              Start Gateway
             </v-btn>
             <v-btn
               v-else
@@ -134,40 +134,12 @@
               :loading="actionLoading === 'test'"
               @click="testConnection"
             >
-              Test Connection
+              Test TCP connection
             </v-btn>
           </v-card-actions>
         </v-card>
       </v-col>
 
-      <!-- Available Devices -->
-      <v-col cols="12" md="6">
-        <v-card>
-          <v-card-title>Serial Devices</v-card-title>
-          <v-card-text>
-            <v-list v-if="devices?.devices?.length > 0" density="compact">
-              <v-list-item v-for="dev in devices.devices" :key="dev.path">
-                <template v-slot:prepend>
-                  <v-icon>mdi-serial-port</v-icon>
-                </template>
-                <v-list-item-title>{{ dev.path }}</v-list-item-title>
-                <template v-slot:append>
-                  <v-chip size="x-small" variant="outlined">{{ dev.type }}</v-chip>
-                </template>
-              </v-list-item>
-            </v-list>
-            <v-alert v-else type="info" variant="tonal" density="compact">
-              No serial devices detected. Connect RS485/Modbus adapters to see them here.
-            </v-alert>
-          </v-card-text>
-          <v-card-actions>
-            <v-btn variant="text" size="small" @click="fetchDevices">
-              <v-icon start>mdi-refresh</v-icon>
-              Refresh
-            </v-btn>
-          </v-card-actions>
-        </v-card>
-      </v-col>
     </v-row>
 
     <!-- Configuration Form -->
@@ -202,9 +174,9 @@
               <v-divider class="my-4"></v-divider>
               <div class="text-subtitle-1 mb-2">Authentication</div>
 
-              <v-radio-group v-model="config.security_type" inline>
+              <v-radio-group v-model="config.security_type" inline :disabled="configInfo?.use_tls">
                 <v-radio label="Access Token" value="access_token"></v-radio>
-                <v-radio label="TLS + Access Token" value="tls_access_token"></v-radio>
+                <v-radio label="TLS + Access Token" value="tls_access_token" :disabled="configInfo?.security_type !== 'tls_access_token'"></v-radio>
                 <v-radio label="Username + Password" value="username_password"></v-radio>
               </v-radio-group>
 
@@ -221,33 +193,7 @@
                 ></v-text-field>
               </div>
 
-              <!-- TLS Settings -->
-              <div v-if="config.security_type === 'tls_access_token'" class="mt-4">
-                <v-switch
-                  v-model="config.use_tls"
-                  label="Enable TLS (Port 8883)"
-                  color="primary"
-                ></v-switch>
-
-                <div v-if="config.use_tls" class="mt-4">
-                  <div class="d-flex align-center mb-3">
-                    <v-btn
-                      color="secondary"
-                      variant="outlined"
-                      size="small"
-                      :loading="actionLoading === 'downloadCert'"
-                      @click="downloadCertFromPlatform"
-                    >
-                      <v-icon start>mdi-download</v-icon>
-                      Download CA from Platform
-                    </v-btn>
-                    <v-chip v-if="caCertUploaded || configInfo?.has_ca_cert" color="success" class="ml-3" size="small">
-                      <v-icon start size="small">mdi-certificate</v-icon>
-                      Certificate ready
-                    </v-chip>
-                  </div>
-                </div>
-              </div>
+              <p v-if="config.use_tls" class="mt-4">Existing TLS configuration is retained.</p>
 
               <!-- Username/Password Mode -->
               <div v-if="config.security_type === 'username_password'" class="mt-4">
@@ -264,7 +210,7 @@
                     <v-text-field
                       v-model="config.username"
                       label="Username"
-                      :rules="[v => !!v || 'Username is required']"
+                      :rules="[v => !!v || configInfo?.has_credentials || 'Username is required']"
                     ></v-text-field>
                   </v-col>
                   <v-col cols="12" md="4">
@@ -274,7 +220,7 @@
                       :type="showPassword ? 'text' : 'password'"
                       :append-inner-icon="showPassword ? 'mdi-eye' : 'mdi-eye-off'"
                       @click:append-inner="showPassword = !showPassword"
-                      :rules="[v => !!v || 'Password is required']"
+                      :rules="[v => !!v || configInfo?.has_credentials || 'Password is required']"
                     ></v-text-field>
                   </v-col>
                 </v-row>
@@ -282,14 +228,7 @@
             </v-form>
           </v-card-text>
           <v-card-actions>
-            <v-btn
-              color="secondary"
-              variant="text"
-              @click="loadComposePreview"
-            >
-              <v-icon start>mdi-file-code</v-icon>
-              Preview docker-compose
-            </v-btn>
+
             <v-spacer></v-spacer>
             <v-btn
               color="primary"
@@ -316,25 +255,12 @@
             </v-btn>
           </v-card-title>
           <v-card-text>
-            <pre class="logs-container">{{ logs || 'Loading logs...' }}</pre>
+            <pre class="logs-container">{{ logs || 'Load logs with Refresh' }}</pre>
           </v-card-text>
         </v-card>
       </v-col>
     </v-row>
 
-    <!-- Docker Compose Preview Dialog -->
-    <v-dialog v-model="showComposePreview" max-width="800">
-      <v-card>
-        <v-card-title>docker-compose.yml Preview</v-card-title>
-        <v-card-text>
-          <pre class="compose-preview">{{ composePreview }}</pre>
-        </v-card-text>
-        <v-card-actions>
-          <v-spacer></v-spacer>
-          <v-btn @click="showComposePreview = false">Close</v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
   </v-container>
 </template>
 
@@ -367,16 +293,13 @@ const {
 
 const status = ref(null)
 const configInfo = ref(null)
-const devices = ref(null)
 const actionLoading = ref(null)
 const showToken = ref(false)
 const showPassword = ref(false)
 const caCertUploaded = ref(false)
 const configForm = ref(null)
 const logs = ref('')
-const showComposePreview = ref(false)
-const composePreview = ref('')
-let refreshInterval = null
+
 
 const config = ref({
   host: 'lb-mqtt.pke-iot.expert',
@@ -411,20 +334,8 @@ const fetchData = async () => {
       caCertUploaded.value = configRes.data.has_ca_cert || false
     }
 
-    if (containerRunning.value) {
-      fetchLogs()
-    }
   } catch (error) {
     console.error('Failed to fetch ThingsBoard data:', error)
-  }
-}
-
-const fetchDevices = async () => {
-  try {
-    const res = await api.get('/api/thingsboard/devices')
-    devices.value = res.data
-  } catch (error) {
-    console.error('Failed to fetch devices:', error)
   }
 }
 
@@ -446,7 +357,7 @@ const saveConfig = async () => {
   try {
     actionLoading.value = 'save'
     await api.put('/api/thingsboard/config', config.value)
-    showSnackbar('Configuration saved successfully')
+    showSnackbar('Connection saved. Restart the gateway to apply it.')
     await fetchData()
   } catch (error) {
     showSnackbar(error.response?.data?.detail || 'Failed to save configuration', 'error')
@@ -545,45 +456,11 @@ const downloadCertFromPlatform = async () => {
   }
 }
 
-const loadComposePreview = async () => {
-  try {
-    const res = await api.get('/api/thingsboard/compose-preview')
-    if (res.data.success) {
-      composePreview.value = res.data.content
-    } else {
-      composePreview.value = `Error: ${res.data.error}`
-    }
-  } catch (error) {
-    composePreview.value = 'Failed to load preview'
-  }
-  showComposePreview.value = true
-}
-
-// Watch for compose preview dialog
-const openPreview = () => {
-  loadComposePreview()
-}
-
 onMounted(() => {
   fetchData()
-  fetchDevices()
-  // Start gateway status polling via composable
-  startPolling()
-  // Also refresh other data periodically
-  refreshInterval = setInterval(() => {
-    fetchDevices()
-    if (containerRunning.value) {
-      fetchLogs()
-    }
-  }, 30000)
 })
 
-onUnmounted(() => {
-  stopPolling()
-  if (refreshInterval) {
-    clearInterval(refreshInterval)
-  }
-})
+onUnmounted(stopPolling)
 </script>
 
 <style scoped>

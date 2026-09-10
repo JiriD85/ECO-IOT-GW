@@ -1,0 +1,2 @@
+# Installer scripts are transferred from Windows to Linux kits.
+*.sh text eol=lf

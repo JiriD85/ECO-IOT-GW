@@ -1,3 +1,4 @@
+from starlette.background import BackgroundTask
 """
 ECO-IOT-GW Backup API
 System backup and restore endpoints
@@ -82,6 +83,7 @@ async def create_backup(
             path=backup_file,
             filename=backup_filename,
             media_type="application/gzip",
+            background=BackgroundTask(Path(backup_file).unlink, missing_ok=True),
             headers={
                 "Content-Disposition": f'attachment; filename="{backup_filename}"'
             }
@@ -127,10 +129,14 @@ async def restore_backup(
         temp_file = NamedTemporaryFile(delete=False, suffix='.tar.gz')
         chunk_size = 8192
 
+        received = 0
         while True:
             chunk = await file.read(chunk_size)
             if not chunk:
                 break
+            received += len(chunk)
+            if received > backup_service.MAX_BYTES:
+                raise HTTPException(status_code=413, detail="Backup upload exceeds size limit")
             temp_file.write(chunk)
 
         temp_file.close()
@@ -198,10 +204,14 @@ async def validate_backup(
         temp_file = NamedTemporaryFile(delete=False, suffix='.tar.gz')
         chunk_size = 8192
 
+        received = 0
         while True:
             chunk = await file.read(chunk_size)
             if not chunk:
                 break
+            received += len(chunk)
+            if received > backup_service.MAX_BYTES:
+                raise HTTPException(status_code=413, detail="Backup upload exceeds size limit")
             temp_file.write(chunk)
 
         temp_file.close()

@@ -5,8 +5,7 @@
         <v-card>
           <v-card-title>Create Backup</v-card-title>
           <v-card-text>
-            Create a full system backup including all configuration files.
-            The backup will be downloaded as a tar.gz archive.
+            Download a configuration archive. Includes gateway, cellular, VPN and UI configuration. Excludes the operating system, audit history and Tailscale identity.
           </v-card-text>
           <v-card-actions>
             <v-btn
@@ -198,7 +197,7 @@ const restoreBackup = async () => {
     const response = await backupApi.restore(selectedFile.value)
 
     if (response.data.success) {
-      showSnackbar('Backup restored successfully')
+      showSnackbar(response.data.message || 'Configuration restored. Reboot to apply it.')
       // Reset state
       selectedFile.value = null
       validationResult.value = null

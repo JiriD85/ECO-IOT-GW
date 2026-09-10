@@ -232,6 +232,8 @@
 import { ref, computed, onMounted } from 'vue'
 import { brandingApi, authApi } from '@/services/api'
 import { useAuthStore } from '@/services/auth'
+import { useBranding } from '../composables/useBranding'
+const branding = useBranding()
 
 const authStore = useAuthStore()
 const isAdmin = computed(() => authStore.user?.role === 'admin')
@@ -432,6 +434,7 @@ const saveConfig = async () => {
 
     // Reload config to get updated state
     await loadConfig()
+    await branding.loadBranding(true)
   } catch (error) {
     console.error('Failed to save configuration:', error)
     showSnackbar(error.response?.data?.detail || 'Failed to save configuration', 'error')

@@ -2,7 +2,7 @@
   <v-container fluid>
     <v-row>
       <v-col cols="12">
-        <h1 class="text-h4 mb-4">Docker Management</h1>
+        <h1 class="text-h4 mb-4">Containers</h1><v-btn variant="tonal" prepend-icon="mdi-refresh" @click="fetchData">Refresh status</v-btn>
       </v-col>
     </v-row>
 
@@ -178,7 +178,7 @@ const logsDialog = ref(false)
 const selectedContainer = ref('')
 const containerLogs = ref('')
 
-let refreshInterval = null
+
 
 const tableHeaders = [
   { title: 'Name', key: 'name' },
@@ -238,7 +238,7 @@ const uploadFile = async (file) => {
 
 const deleteCompose = async () => {
   try {
-    await dockerApi.composeDown()
+    await dockerApi.deleteCompose()
     composeContent.value = ''
     showSnackbar('Configuration deleted')
     await fetchData()
@@ -275,7 +275,7 @@ const composeDown = async () => {
 
 const startContainer = async (name) => {
   try {
-    await dockerApi.post(`/api/docker/container/${name}/start`)
+    await dockerApi.startContainer(name)
     showSnackbar(`Container ${name} started`)
     await fetchData()
   } catch (error) {
@@ -285,7 +285,7 @@ const startContainer = async (name) => {
 
 const stopContainer = async (name) => {
   try {
-    await dockerApi.post(`/api/docker/container/${name}/stop`)
+    await dockerApi.stopContainer(name)
     showSnackbar(`Container ${name} stopped`)
     await fetchData()
   } catch (error) {
@@ -295,7 +295,7 @@ const stopContainer = async (name) => {
 
 const restartContainer = async (name) => {
   try {
-    await dockerApi.post(`/api/docker/container/${name}/restart`)
+    await dockerApi.restartContainer(name)
     showSnackbar(`Container ${name} restarted`)
     await fetchData()
   } catch (error) {
@@ -316,14 +316,10 @@ const showLogs = async (name) => {
 
 onMounted(() => {
   fetchData()
-  refreshInterval = setInterval(fetchData, 10000)
+
 })
 
-onUnmounted(() => {
-  if (refreshInterval) {
-    clearInterval(refreshInterval)
-  }
-})
+
 </script>
 
 <style scoped>

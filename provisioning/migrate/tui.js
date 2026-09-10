@@ -28,6 +28,8 @@ const { spawn } = require('child_process');
 const cfgLib = require('./lib/config');
 const ssh = require('./lib/ssh');
 const { TB } = require('./lib/tb');
+const release = require('./lib/release');
+const RELEASE_FILE = path.join(__dirname, 'cache', 'webconsole-release.json');
 
 // ---------- constants ----------
 const REPO = path.join(__dirname, '..', '..');  // ECO-IOT-GW
@@ -557,7 +559,7 @@ const PHASES = [
     },
     async run(ctx) {
       const netSrc = path.join(PROV, 'setup-networking.sh');
-      const rawipSrc = path.join(BOXDIR, 'install-lte-rawip.sh');
+      const rawipSrc = path.join(PROV, 'box', 'install-lte-rawip.sh');
       // The link still flaps here (eth0 DHCP-retry loop), so the first copy can hit a
       // down-moment — retry until a window opens. Push both scripts now (we need the raw_ip
       // one after eth0 is reconfigured, when the link may be briefly unavailable).
@@ -762,24 +764,21 @@ const PHASES = [
 
   // ---------------- 6. Laptop artifacts ----------------
   {
-    id: 'artifacts', title: 'Laptop — build/verify offline artifacts',
+    id: 'artifacts', fatal: true, title: 'Laptop — build/verify offline artifacts',
     async detect(ctx) {
-      if (ctx.args.skipArtifacts) return { done: true, detail: '--skip-artifacts' };
       const need = artifactPaths(ctx);
       const missing = Object.entries(need).filter(([, p]) => !fs.existsSync(p)).map(([k]) => k);
-      return { done: missing.length === 0, detail: missing.length ? `missing: ${missing.join(', ')}` : 'all artifacts cached' };
+      const current = release.validArtifacts(RELEASE_FILE, release.sourceRevision(REPO), need);
+      return { done: !missing.length && current, detail: current ? 'verified current source artifacts' : 'artifacts missing or outdated for this source' };
     },
     async run(ctx) {
       const need = artifactPaths(ctx);
-      // frontend build -> dist tgz
-      if (!fs.existsSync(need.dist)) {
-        if (!fs.existsSync(path.join(REPO, 'frontend', 'dist', 'index.html'))) {
-          step('building frontend (npm run build)…');
-          await mustLocal('npm', ['run', 'build'], path.join(REPO, 'frontend'), 'npm run build');
-        }
-        step('packing dist…');
-        await packTgz(need.dist, path.join(REPO, 'frontend', 'dist'), [], ['.'], 'pack dist');
-      }
+      if (ctx.args.skipArtifacts) throw new Error('--skip-artifacts requires verified artifacts for the current source; rerun without it');
+      fs.mkdirSync(CACHE, { recursive: true });
+      step('building current frontend (npm run build)…');
+      await mustLocal('npm', ['ci', '--no-audit', '--no-fund'], path.join(REPO, 'frontend'), 'npm ci');
+      await mustLocal('npm', ['run', 'build'], path.join(REPO, 'frontend'), 'npm run build');
+      await packTgz(need.dist, path.join(REPO, 'frontend', 'dist'), [], ['.'], 'pack dist');
       // backend tgz (cheap, always fine)
       step('packing backend…');
       await packTgz(need.backend, path.join(REPO, 'backend'),
@@ -835,7 +834,8 @@ const PHASES = [
       }
       const stillMissing = Object.entries(need).filter(([, f]) => !fs.existsSync(f)).map(([k]) => k);
       if (stillMissing.length) throw new Error('artifacts still missing after build: ' + stillMissing.join(', '));
-      ok('artifacts ready');
+      fs.writeFileSync(RELEASE_FILE, JSON.stringify({ revision: release.sourceRevision(REPO), files: Object.fromEntries(Object.entries(need).map(([k, f]) => [k, release.sha(f)])) }, null, 2));
+      ok('artifacts ready and tied to current source');
     },
   },
 
@@ -912,6 +912,26 @@ const PHASES = [
     },
   },
 
+  {
+    id: 'live-telemetry', fatal: true, title: 'Box — upgrade local telemetry observer',
+    async detect(ctx) {
+      const expected = release.sha(path.join(REPO, 'gateway/extensions/eco_modbus/live_modbus.py'));
+      const r = sh(ctx, asRoot(ctx, `docker exec tb-gateway sha256sum /thingsboard_gateway/extensions/eco_modbus/live_modbus.py 2>/dev/null; docker inspect -f '{{range .Mounts}}{{println .Destination}}{{end}}' tb-gateway 2>/dev/null; cat /opt/eco/tb-gateway/.live-release 2>/dev/null`));
+      return { done: r.stdout.includes(expected) && r.stdout.split(/\r?\n/).includes('/run/eco-telemetry') && r.stdout.includes(release.sourceRevision(REPO)), detail: 'observer code, shared memory mount and installer release checked' };
+    },
+    async run(ctx) {
+      await putMany(ctx, [
+        { local: path.join(BOXDIR, 'install-live-telemetry.py'), remote: '/tmp/install-live-telemetry.py' },
+        { local: path.join(REPO, 'tools/prepare-live-telemetry.py'), remote: '/tmp/prepare-live-telemetry.py' },
+        { local: path.join(REPO, 'gateway/extensions/eco_modbus/live_modbus.py'), remote: '/tmp/live_modbus.py' },
+      ], 'uploading local telemetry observer…');
+      const r = await stream(ctx, asRoot(ctx, 'python3 /tmp/install-live-telemetry.py /tmp/prepare-live-telemetry.py /tmp/live_modbus.py'));
+      if (r.code !== 0) throw new Error('Observer upgrade failed; inspect rollback output before continuing');
+      const marked = await stream(ctx, asRoot(ctx, `printf '%s' ${shq(release.sourceRevision(REPO))} > /opt/eco/tb-gateway/.live-release`));
+      if (marked.code !== 0) throw new Error('Could not record observer release');
+    },
+  },
+
   // ---------------- 10. Tailscale ----------------
   {
     id: 'tailscale', title: 'Box — join Tailscale (remote SSH + web)',
@@ -953,10 +973,12 @@ const PHASES = [
       // first line exactly instead.
       const active = r.stdout.split(/\r?\n/)[0].trim() === 'active';
       const secretOk = /SECRETOK/.test(r.stdout);
-      return { done: active && secretOk, detail: active ? (secretOk ? 'backend active, per-device secrets set' : 'active but on default secrets') : 'not installed' };
+      const revision = sh(ctx, 'cat /opt/eco/webui/release 2>/dev/null').stdout.trim();
+      return { done: active && secretOk && revision === release.sourceRevision(REPO), detail: active ? (secretOk ? 'backend active, per-device secrets set' : 'active but on default secrets') : 'not installed' };
     },
     async run(ctx) {
       const need = artifactPaths(ctx);
+      if (!release.validArtifacts(RELEASE_FILE, release.sourceRevision(REPO), need)) throw new Error('Current source artifacts were not verified');
       await putMany(ctx, [
         { local: path.join(PROV, 'setup-secrets.sh'), remote: '/tmp/setup-secrets.sh' },
         { local: path.join(BOXDIR, 'install-webconsole.sh'), remote: '/tmp/install-webconsole.sh' },
@@ -967,7 +989,7 @@ const PHASES = [
       step('generating per-device secrets…');
       await stream(ctx, asRoot(ctx, 'chmod +x /tmp/setup-secrets.sh && /tmp/setup-secrets.sh'));
       step('installing web console (systemd, 0.0.0.0:80)…');
-      const r = await stream(ctx, asRoot(ctx, 'chmod +x /tmp/install-webconsole.sh && /tmp/install-webconsole.sh /tmp/webconsole-backend.tgz /tmp/webconsole-wheelhouse.tgz /tmp/webconsole-dist.tgz'));
+      const r = await stream(ctx, asRoot(ctx, 'chmod +x /tmp/install-webconsole.sh && /tmp/install-webconsole.sh /tmp/webconsole-backend.tgz /tmp/webconsole-wheelhouse.tgz /tmp/webconsole-dist.tgz ' + shq(release.sourceRevision(REPO))));
       if (r.code !== 0) throw new Error('install-webconsole.sh failed');
       await stream(ctx, asRoot(ctx, 'systemctl restart eco-iot-gw-backend'));
       await ensureEcoadminPassword(ctx);
@@ -1150,8 +1172,12 @@ async function ensureEcoadminPassword(ctx) {
     recordCredentials(ctx);   // refresh the shared ledger anyway
     return;
   }
-  const pw = Array.from({ length: 16 }, () => 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghikmnpqrstuvwxyz23456789'[Math.floor(Math.random() * 54)]).join('');
-  await stream(ctx, asRoot(ctx, `echo 'ecoadmin:${pw}' | chpasswd`));
+  const existing = sh(ctx, asRoot(ctx, "passwd -S ecoadmin | awk '{print $2}'")).stdout.trim();
+  if (existing === 'P') { info('existing ecoadmin password retained; no local credential copy available'); return; }
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghikmnpqrstuvwxyz23456789';
+  const pw = Array.from({ length: 16 }, () => alphabet[crypto.randomInt(alphabet.length)]).join('');
+  const changed = await stream(ctx, asRoot(ctx, `echo 'ecoadmin:${pw}' | chpasswd`));
+  if (changed.code !== 0) throw new Error('Could not set ecoadmin password');
   fs.mkdirSync(OUT, { recursive: true });
   fs.writeFileSync(secFile, JSON.stringify({
     kit: ctx.kit, gatewayName: ctx.store.gw ? ctx.store.gw.name : null,
@@ -1287,7 +1313,7 @@ async function mainWizard() {
       bad(`${ph.id} failed: ${e.message}`);
       summary.push([ph.id, 'FAILED']);
       // every later phase talks to the box, so a failed connect cannot be worked around
-      if (ph.fatal) { bad('cannot continue without a connection to the box'); break; }
+      if (ph.fatal) { bad('cannot safely continue past this failed phase'); break; }
       if (!await confirm('Continue with the remaining phases anyway?', false)) break;
     }
   }

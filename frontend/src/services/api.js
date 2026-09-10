@@ -1,4 +1,6 @@
 import axios from 'axios'
+import { cachedAdapter } from './cache.js'
+import { recordRead } from './managementHealth.js'
 
 const api = axios.create({
   baseURL: window.location.origin,
@@ -7,15 +9,24 @@ const api = axios.create({
     'Content-Type': 'application/json'
   }
 })
+api.defaults.adapter = cachedAdapter(axios.getAdapter(api.defaults.adapter))
+api.interceptors.request.use(config => {
+  config.page = window.location.pathname
+  return config
+})
 
 // Response interceptor for handling errors
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    if (response.config.method === 'get') recordRead(response.config.url, false, response.config.page)
+    return response
+  },
   async (error) => {
     const originalRequest = error.config
+    if (originalRequest?.method === 'get') recordRead(originalRequest.url, true, originalRequest.page)
 
     // Handle 401 Unauthorized
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    if (error.response?.status === 401 && originalRequest && !originalRequest._retry && !/\/api\/auth\/(login|refresh)/.test(originalRequest.url)) {
       originalRequest._retry = true
 
       // Try to refresh token
@@ -44,6 +55,10 @@ export default api
 // API helper functions
 export const dockerApi = {
   getStatus: () => api.get('/api/docker/status'),
+  deleteCompose: () => api.delete('/api/docker/compose'),
+  startContainer: name => api.post(`/api/docker/container/${encodeURIComponent(name)}/start`),
+  stopContainer: name => api.post(`/api/docker/container/${encodeURIComponent(name)}/stop`),
+  restartContainer: name => api.post(`/api/docker/container/${encodeURIComponent(name)}/restart`),
   getCompose: () => api.get('/api/docker/compose'),
   uploadCompose: (content) => api.post('/api/docker/compose', { content, filename: 'docker-compose.yml' }),
   uploadComposeFile: (file) => {

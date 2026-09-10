@@ -52,13 +52,7 @@ def get_connectivity_status(user: UserInfo = Depends(get_current_user)):
 
     except Exception as e:
         logger.error(f"Failed to check connectivity: {e}")
-        return ConnectivityStatus(
-            vpn=False,
-            modem=False,
-            thingsboard=False,
-            internet=False,
-            last_check=datetime.now()
-        )
+        raise HTTPException(status_code=503, detail="Unable to read connectivity status") from e
 
 
 @router.get("/modbus", response_model=List[ModbusValue])
@@ -99,14 +93,10 @@ async def poll_modbus_register(
     Note: This triggers a poll via the Gateway, not direct Modbus access.
     The result will appear in subsequent /modbus calls.
     """
-    # This would trigger gateway to poll - for now just log
-    logger.info(f"Manual Modbus poll requested: device={device}, register={register}")
-
-    return {
-        "message": "Poll request sent",
-        "device": device,
-        "register": register
-    }
+    raise HTTPException(
+        status_code=status.HTTP_501_NOT_IMPLEMENTED,
+        detail="Manual Modbus polling is not implemented. Use the live meter stream."
+    )
 
 
 @router.get("/gateway/logs", response_model=List[GatewayLogEntry])

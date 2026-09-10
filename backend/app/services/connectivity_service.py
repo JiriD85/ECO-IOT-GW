@@ -30,11 +30,11 @@ def _nmcli_active() -> List[Tuple[str, str, str]]:
     try:
         out = subprocess.run(
             ["nmcli", "-t", "-f", "DEVICE,TYPE,STATE", "con", "show", "--active"],
-            capture_output=True, text=True, timeout=3,
+            capture_output=True, text=True, timeout=3, check=True,
         ).stdout
     except Exception as e:  # nmcli missing / timeout
         logger.warning("nmcli active-connections failed: %s", e)
-        return []
+        raise RuntimeError("Unable to read NetworkManager status") from e
     rows = []
     for line in out.splitlines():
         parts = line.split(":")
@@ -66,17 +66,9 @@ def _check_modem(active: List[Tuple[str, str, str]]) -> bool:
 
 
 def _check_vpn() -> bool:
-    """VPN feature up = an OpenVPN/WireGuard interface exists. Tailscale excluded
-    (it's a separate transport, not the VPN feature)."""
-    try:
-        for iface in os.listdir("/sys/class/net"):
-            if iface == "tailscale0":
-                continue
-            if iface.startswith(("tun", "wg")):
-                return True
-    except Exception:
-        pass
-    return False
+    """Use the selected VPN type, including Tailscale."""
+    from .vpn_service import vpn_service
+    return vpn_service.get_status().connected
 
 
 def _check_internet() -> bool:

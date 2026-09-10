@@ -1,274 +1,32 @@
 <template>
-  <v-container fluid>
-    <v-row>
-      <v-col cols="12">
-        <h1 class="text-h4 mb-4">Dashboard</h1>
-      </v-col>
-    </v-row>
+  <div class="overview">
+    <header class="page-heading"><div><h1>Dashboard</h1></div><div class="page-actions"><span v-if="lastFetch" class="live-age" title="Time since the last telemetry update received by this browser">{{ receivedAge }}</span><button class="live-button" :class="{ active: streaming }" @click="handleLive" :aria-pressed="live"><i></i>{{ !live ? 'Paused' : streaming ? 'Live' : loading && !error ? 'Connecting…' : 'Disconnected, click to reconnect' }}</button></div></header>
+    <div v-if="error" class="notice warning" role="alert">{{ error }} Connection states are unverified.</div>
+    <div v-else-if="snapshot?.notice" class="notice warning" role="status">{{ snapshot.notice }}</div>
+    <div v-if="!live" class="notice">Live updates are paused. Displayed readings are the last received values.</div>
+    <section class="devices-section">
+      <div v-if="!snapshot && loading" class="panel empty-state" role="status"><h3>Reading your gateway…</h3><p>Waiting for the local device inventory.</p></div>
+      <div v-else-if="!devices.length" class="panel empty-state"><h3>{{ error ? 'Device inventory unavailable' : 'No configured devices found' }}</h3><p>{{ error ? 'Reconnect to the gateway and refresh.' : 'Check the active Modbus connector configuration.' }}</p><RouterLink to="/connector">Open connector details →</RouterLink></div>
+      <div v-else class="meter-grid"><MeterCard v-for="device in meters" :key="device.name" :device="device" :now="now" :history="history" /><section v-if="temperatures.length" class="panel temperature-pair" aria-label="Temperature sensors"><MeterCard v-for="device in temperatures" :key="device.name" :device="device" :now="now" :history="history" /><ReadingTrend class="sensor-pair-trend" :series="temperatureSeries" unit="°C" :gap="Math.max(...temperatures.map(d => d.stale_after))" /></section></div>
+    </section>
 
-    <!-- System Status Cards -->
-    <v-row>
-      <v-col cols="12" md="3">
-        <v-card>
-          <v-card-text class="text-center">
-            <v-icon size="48" :color="cpuColor">mdi-cpu-64-bit</v-icon>
-            <div class="text-h4 mt-2">{{ systemStatus?.cpu_percent?.toFixed(1) ?? '—' }}%</div>
-            <div class="text-caption">CPU Usage</div>
-          </v-card-text>
-        </v-card>
-      </v-col>
-
-      <v-col cols="12" md="3">
-        <v-card>
-          <v-card-text class="text-center">
-            <v-icon size="48" :color="memoryColor">mdi-memory</v-icon>
-            <div class="text-h4 mt-2">{{ systemStatus?.memory_percent?.toFixed(1) ?? '—' }}%</div>
-            <div class="text-caption">Memory Usage</div>
-          </v-card-text>
-        </v-card>
-      </v-col>
-
-      <v-col cols="12" md="3">
-        <v-card>
-          <v-card-text class="text-center">
-            <v-icon size="48" :color="diskColor">mdi-harddisk</v-icon>
-            <div class="text-h4 mt-2">{{ systemStatus?.disk_percent?.toFixed(1) ?? '—' }}%</div>
-            <div class="text-caption">Disk Usage</div>
-          </v-card-text>
-        </v-card>
-      </v-col>
-
-      <v-col cols="12" md="3">
-        <v-card>
-          <v-card-text class="text-center">
-            <v-icon size="48" :color="tempColor">mdi-thermometer</v-icon>
-            <div class="text-h4 mt-2">{{ systemStatus?.temperature?.toFixed(1) || '--' }}°C</div>
-            <div class="text-caption">Temperature</div>
-          </v-card-text>
-        </v-card>
-      </v-col>
-    </v-row>
-
-    <!-- Connectivity Status -->
-    <v-row class="mt-4">
-      <v-col cols="12">
-        <v-card>
-          <v-card-title>Connectivity Status</v-card-title>
-          <v-card-text>
-            <v-row>
-              <v-col cols="6" md="3" class="text-center">
-                <v-icon size="36" :color="connState(connectivity?.vpn).color">mdi-vpn</v-icon>
-                <div class="mt-2">VPN</div>
-                <v-chip :color="connState(connectivity?.vpn).color" size="small">
-                  {{ connState(connectivity?.vpn).label }}
-                </v-chip>
-              </v-col>
-
-              <v-col cols="6" md="3" class="text-center">
-                <v-icon size="36" :color="connState(connectivity?.modem).color">mdi-antenna</v-icon>
-                <div class="mt-2">Modem</div>
-                <v-chip :color="connState(connectivity?.modem).color" size="small">
-                  {{ connState(connectivity?.modem).label }}
-                </v-chip>
-              </v-col>
-
-              <v-col cols="6" md="3" class="text-center">
-                <v-icon size="36" :color="connState(connectivity?.thingsboard).color">mdi-cloud</v-icon>
-                <div class="mt-2">ThingsBoard</div>
-                <v-chip :color="connState(connectivity?.thingsboard).color" size="small">
-                  {{ connState(connectivity?.thingsboard).label }}
-                </v-chip>
-              </v-col>
-
-              <v-col cols="6" md="3" class="text-center">
-                <v-icon size="36" :color="connState(connectivity?.internet).color">mdi-web</v-icon>
-                <div class="mt-2">Internet</div>
-                <v-chip :color="connState(connectivity?.internet).color" size="small">
-                  {{ connState(connectivity?.internet).label }}
-                </v-chip>
-              </v-col>
-            </v-row>
-          </v-card-text>
-        </v-card>
-      </v-col>
-    </v-row>
-
-    <!-- Container Status -->
-    <v-row class="mt-4">
-      <v-col cols="12" md="6">
-        <v-card>
-          <v-card-title>Docker Containers</v-card-title>
-          <v-card-text>
-            <v-list v-if="containers.length > 0">
-              <v-list-item
-                v-for="container in containers"
-                :key="container.id"
-              >
-                <template v-slot:prepend>
-                  <v-icon :color="container.status === 'running' ? 'success' : 'error'">
-                    mdi-docker
-                  </v-icon>
-                </template>
-                <v-list-item-title>{{ container.name }}</v-list-item-title>
-                <v-list-item-subtitle>{{ container.image }}</v-list-item-subtitle>
-                <template v-slot:append>
-                  <v-chip
-                    :color="container.status === 'running' ? 'success' : 'error'"
-                    size="small"
-                  >
-                    {{ container.status }}
-                  </v-chip>
-                </template>
-              </v-list-item>
-            </v-list>
-            <div v-else class="text-center text-grey">
-              No containers running
-            </div>
-          </v-card-text>
-        </v-card>
-      </v-col>
-
-      <!-- System Info -->
-      <v-col cols="12" md="6">
-        <v-card>
-          <v-card-title>System Information</v-card-title>
-          <v-card-text>
-            <v-list density="compact">
-              <v-list-item>
-                <v-list-item-title>Hostname</v-list-item-title>
-                <template v-slot:append>
-                  <span class="text-grey">{{ systemStatus?.hostname || '--' }}</span>
-                </template>
-              </v-list-item>
-              <v-list-item>
-                <v-list-item-title>Uptime</v-list-item-title>
-                <template v-slot:append>
-                  <span class="text-grey">{{ formatUptime(systemStatus?.uptime) }}</span>
-                </template>
-              </v-list-item>
-              <v-list-item>
-                <v-list-item-title>Load Average</v-list-item-title>
-                <template v-slot:append>
-                  <span class="text-grey">
-                    {{ systemStatus?.load_average?.map(l => l.toFixed(2)).join(' ') || '--' }}
-                  </span>
-                </template>
-              </v-list-item>
-              <v-list-item>
-                <v-list-item-title>Memory</v-list-item-title>
-                <template v-slot:append>
-                  <span class="text-grey">
-                    {{ formatBytes(systemStatus?.memory_used) }} / {{ formatBytes(systemStatus?.memory_total) }}
-                  </span>
-                </template>
-              </v-list-item>
-              <v-list-item>
-                <v-list-item-title>Disk</v-list-item-title>
-                <template v-slot:append>
-                  <span class="text-grey">
-                    {{ formatBytes(systemStatus?.disk_used) }} / {{ formatBytes(systemStatus?.disk_total) }}
-                  </span>
-                </template>
-              </v-list-item>
-            </v-list>
-          </v-card-text>
-        </v-card>
-      </v-col>
-    </v-row>
-  </v-container>
+  </div>
 </template>
-
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { systemApi, diagnosticsApi, dockerApi } from '../services/api'
-
-const systemStatus = ref(null)
-const connectivity = ref(null)
-const containers = ref([])
-let refreshInterval = null
-
-const cpuColor = computed(() => {
-  const cpu = systemStatus.value?.cpu_percent || 0
-  if (cpu > 80) return 'error'
-  if (cpu > 60) return 'warning'
-  return 'success'
-})
-
-const memoryColor = computed(() => {
-  const mem = systemStatus.value?.memory_percent || 0
-  if (mem > 80) return 'error'
-  if (mem > 60) return 'warning'
-  return 'success'
-})
-
-const diskColor = computed(() => {
-  const disk = systemStatus.value?.disk_percent || 0
-  if (disk > 90) return 'error'
-  if (disk > 80) return 'warning'
-  return 'success'
-})
-
-const tempColor = computed(() => {
-  const temp = systemStatus.value?.temperature || 0
-  if (temp > 80) return 'error'
-  if (temp > 70) return 'warning'
-  return 'success'
-})
-
-const formatUptime = (seconds) => {
-  if (!seconds) return '--'
-  const days = Math.floor(seconds / 86400)
-  const hours = Math.floor((seconds % 86400) / 3600)
-  const mins = Math.floor((seconds % 3600) / 60)
-  return `${days}d ${hours}h ${mins}m`
-}
-
-const formatBytes = (bytes) => {
-  if (!bytes) return '--'
-  const units = ['B', 'KB', 'MB', 'GB', 'TB']
-  let i = 0
-  while (bytes >= 1024 && i < units.length - 1) {
-    bytes /= 1024
-    i++
-  }
-  return `${bytes.toFixed(1)} ${units[i]}`
-}
-
-// Tri-state so a tile reads "Checking…" (grey) while loading instead of a
-// misleading red "Disconnected" before the first response arrives.
-const connState = (value) => {
-  if (value === undefined || value === null) return { color: 'grey', label: 'Checking…' }
-  return value
-    ? { color: 'success', label: 'Connected' }
-    : { color: 'error', label: 'Disconnected' }
-}
-
-// Fetch each card independently so a slow check never holds up the others
-// (previously one Promise.all meant every card waited on the slowest call).
-const fetchSystem = async () => {
-  try { systemStatus.value = (await systemApi.getStatus()).data } catch (e) { /* keep last */ }
-}
-const fetchConnectivity = async () => {
-  try { connectivity.value = (await diagnosticsApi.getConnectivity()).data } catch (e) { /* keep last */ }
-}
-const fetchDocker = async () => {
-  try { containers.value = (await dockerApi.getStatus()).data.containers || [] } catch (e) { /* keep last */ }
-}
-
-const fetchData = () => {
-  fetchSystem()
-  fetchConnectivity()
-  fetchDocker()
-}
-
-onMounted(() => {
-  fetchData()
-  refreshInterval = setInterval(fetchData, 5000)
-})
-
-onUnmounted(() => {
-  if (refreshInterval) {
-    clearInterval(refreshInterval)
-  }
-})
+import { computed, shallowRef, watch, onUnmounted } from 'vue'
+import MeterCard from '../components/MeterCard.vue'
+import ReadingTrend from '../components/ReadingTrend.vue'
+import { useLiveMeters } from '../composables/useLiveMeters'
+import { recordHistory, restoreHistory, saveHistory, historyKey } from '../services/telemetryHistory'
+const { snapshot, devices, loading, error, live, streaming, now, refresh, toggle, lastFetch } = useLiveMeters()
+const receivedAge = computed(() => { const seconds = Math.max(0, Math.floor((now.value - lastFetch.value) / 1000)); return seconds < 60 ? `${seconds}s ago` : `${Math.floor(seconds / 60)}m ${seconds % 60}s ago` })
+function handleLive() { if (live.value && !streaming.value) refresh(); else toggle() }
+const meters = computed(() => devices.value.filter(d => d.role !== 'temperature'))
+const temperatures = computed(() => devices.value.filter(d => d.role === 'temperature'))
+const history = shallowRef(restoreHistory())
+const temperatureSeries = computed(() => temperatures.value.map((d, i) => { const r = d.readings.find(r => !r.tag.endsWith('_error')); return { label: d.label, tone: i ? 'return' : 'temperature', stale: d.displayLink !== 'connected' || r?.stale, points: r ? history.value[historyKey(d, r.tag)] || [] : [] } }))
+watch(devices, value => { if (snapshot.value) history.value = recordHistory(history.value, value) })
+const persist = () => saveHistory(history.value)
+window.addEventListener('pagehide', persist)
+onUnmounted(() => { persist(); window.removeEventListener('pagehide', persist) })
 </script>

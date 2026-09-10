@@ -229,95 +229,71 @@ class ModemService:
             info["error"] = str(e)
         return info
 
+    @staticmethod
+    def _nm(args, timeout=15):
+        try:
+            return subprocess.run(["nmcli", "--terse", "--escape", "no", *args],
+                                  capture_output=True, text=True, check=True, timeout=timeout).stdout.rstrip("\r\n")
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
+            # Do not include command arguments: they may contain APN credentials.
+            raise RuntimeError("NetworkManager operation failed") from exc
+
+    def _profile(self):
+        def profiles(active=False):
+            args = ["-f", "UUID,TYPE", "connection", "show"]
+            if active:
+                args.append("--active")
+            return [row.split(":", 1)[0] for row in self._nm(args).splitlines()
+                    if row.endswith(":gsm")]
+        active = profiles(True)
+        if len(active) == 1:
+            return active[0]
+        available = profiles()
+        if len(available) > 1:
+            raise RuntimeError("Multiple cellular profiles exist; select the intended profile in NetworkManager")
+        return available[0] if available else None
+
     def get_config(self) -> ModemConfig:
-        """Get current modem configuration."""
-        if self._config:
-            return self._config
-        return ModemConfig(apn="internet", auto_connect=True)
+        profile = self._profile()
+        if profile:
+            fields = self._nm(["--show-secrets", "-g",
+                "gsm.apn,gsm.username,gsm.password,gsm.pin,connection.autoconnect",
+                "connection", "show", "uuid", profile]).split("\n")
+            if len(fields) == 5:
+                return ModemConfig(apn=fields[0], username=fields[1] or None,
+                    password=fields[2] or None, pin=fields[3] or None,
+                    auto_connect=fields[4] == "yes")
+            raise RuntimeError("Could not read cellular profile settings")
+        return self._config.model_copy() if self._config else ModemConfig(apn="internet", auto_connect=True)
 
     def set_config(self, config: ModemConfig):
-        """Set modem configuration."""
+        current = self.get_config()
+        config = config.model_copy()
+        if config.password == "********":
+            config.password = current.password
+        if config.pin == "****":
+            config.pin = current.pin
+        profile = self._profile()
+        fields = ["gsm.apn", config.apn, "gsm.username", config.username or "",
+                  "gsm.password", config.password or "", "gsm.pin", config.pin or "",
+                  "connection.autoconnect", "yes" if config.auto_connect else "no"]
+        if profile:
+            self._nm(["connection", "modify", "uuid", profile, *fields])
+        else:
+            self._nm(["connection", "add", "type", "gsm", "con-name", "eco-cellular", "ifname", "*", *fields])
         self._config = config
         self._save_config()
 
-        # Apply configuration via NetworkManager
-        self._apply_nm_config()
-
-        logger.info(f"Modem configuration set: APN={config.apn}")
-
-    def _apply_nm_config(self):
-        """Apply configuration via NetworkManager."""
-        if not self._config:
-            return
-
-        try:
-            # Create/update NetworkManager connection
-            conn_name = "gsm-connection"
-
-            # Delete existing connection if present
-            subprocess.run(
-                ["nmcli", "connection", "delete", conn_name],
-                capture_output=True,
-                check=False
-            )
-
-            # Create new connection
-            cmd = [
-                "nmcli", "connection", "add",
-                "type", "gsm",
-                "con-name", conn_name,
-                "ifname", "*",
-                "apn", self._config.apn
-            ]
-
-            if self._config.username:
-                cmd.extend(["user", self._config.username])
-            if self._config.password:
-                cmd.extend(["password", self._config.password])
-
-            subprocess.run(cmd, capture_output=True, check=True)
-
-            # Set auto-connect
-            auto = "yes" if self._config.auto_connect else "no"
-            subprocess.run([
-                "nmcli", "connection", "modify", conn_name,
-                "connection.autoconnect", auto
-            ], capture_output=True, check=True)
-
-            logger.info("NetworkManager GSM connection configured")
-
-        except subprocess.CalledProcessError as e:
-            logger.error(f"Failed to configure NetworkManager: {e.stderr}")
-
     def connect(self):
-        """Establish modem connection."""
-        # Unlock SIM if PIN is set
-        if self._config and self._config.pin:
-            pin_status = self.send_at_command("AT+CPIN?")
-            if "SIM PIN" in pin_status:
-                self.send_at_command(f"AT+CPIN={self._config.pin}")
-                time.sleep(2)
-
-        # Activate via NetworkManager
-        try:
-            subprocess.run([
-                "nmcli", "connection", "up", "gsm-connection"
-            ], capture_output=True, check=True, timeout=60)
-            logger.info("Modem connected")
-        except subprocess.CalledProcessError as e:
-            raise RuntimeError(f"Failed to connect: {e.stderr.decode()}")
-        except subprocess.TimeoutExpired:
-            raise RuntimeError("Connection timeout")
+        profile = self._profile()
+        if not profile:
+            raise RuntimeError("Save cellular configuration before connecting")
+        self._nm(["connection", "up", "uuid", profile], timeout=60)
 
     def disconnect(self):
-        """Disconnect modem."""
-        try:
-            subprocess.run([
-                "nmcli", "connection", "down", "gsm-connection"
-            ], capture_output=True, check=False)
-            logger.info("Modem disconnected")
-        except Exception as e:
-            logger.warning(f"Error disconnecting modem: {e}")
+        profile = self._profile()
+        if profile:
+            self._nm(["connection", "down", "uuid", profile])
 
     def reset(self):
         """Reset modem via ModemManager (mmcli --reset). Uses MM instead of a raw AT

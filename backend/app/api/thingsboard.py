@@ -22,13 +22,13 @@ router = APIRouter()
 
 
 @router.get("/config", response_model=ThingsBoardConfigResponse)
-async def get_thingsboard_config(user=Depends(get_current_user)):
+def get_thingsboard_config(user=Depends(get_current_user)):
     """Get ThingsBoard configuration (without sensitive data)."""
     return thingsboard_service.get_config()
 
 
 @router.put("/config", response_model=SuccessResponse)
-async def save_thingsboard_config(
+def save_thingsboard_config(
     config: ThingsBoardConfig,
     user=Depends(get_current_user)
 ):
@@ -75,7 +75,7 @@ async def save_thingsboard_config(
 
 
 @router.delete("/config", response_model=SuccessResponse)
-async def delete_thingsboard_config(user=Depends(get_current_user)):
+def delete_thingsboard_config(user=Depends(get_current_user)):
     """Delete ThingsBoard configuration."""
     try:
         thingsboard_service.delete_config()
@@ -103,13 +103,13 @@ async def delete_thingsboard_config(user=Depends(get_current_user)):
 
 
 @router.get("/status", response_model=ThingsBoardStatus)
-async def get_thingsboard_status(user=Depends(get_current_user)):
+def get_thingsboard_status(user=Depends(get_current_user)):
     """Get ThingsBoard connection status."""
     return thingsboard_service.get_status()
 
 
 @router.post("/restart", response_model=SuccessResponse)
-async def restart_thingsboard_gateway(user=Depends(get_current_user)):
+def restart_thingsboard_gateway(user=Depends(get_current_user)):
     """Restart the ThingsBoard Gateway container."""
     try:
         thingsboard_service.restart_gateway()
@@ -138,13 +138,13 @@ async def restart_thingsboard_gateway(user=Depends(get_current_user)):
 
 
 @router.post("/test", response_model=Dict[str, Any])
-async def test_thingsboard_connection(user=Depends(get_current_user)):
+def test_thingsboard_connection(user=Depends(get_current_user)):
     """Test ThingsBoard connection."""
     return thingsboard_service.test_connection()
 
 
 @router.post("/download-cert", response_model=Dict[str, Any])
-async def download_ca_certificate(
+def download_ca_certificate(
     host: str = None,
     user=Depends(get_current_user)
 ):
@@ -153,13 +153,13 @@ async def download_ca_certificate(
 
 
 @router.get("/devices", response_model=Dict[str, Any])
-async def get_available_devices(user=Depends(get_current_user)):
+def get_available_devices(user=Depends(get_current_user)):
     """Get available serial devices on the system."""
     return thingsboard_service.get_available_devices()
 
 
 @router.post("/deploy", response_model=Dict[str, Any])
-async def deploy_gateway(user=Depends(get_current_user)):
+def deploy_gateway(user=Depends(get_current_user)):
     """Generate docker-compose and deploy the gateway."""
     result = thingsboard_service.deploy_gateway()
     thingsboard_service.invalidate_status_cache()
@@ -180,7 +180,7 @@ async def deploy_gateway(user=Depends(get_current_user)):
 
 
 @router.post("/stop", response_model=Dict[str, Any])
-async def stop_gateway(user=Depends(get_current_user)):
+def stop_gateway(user=Depends(get_current_user)):
     """Stop the ThingsBoard Gateway."""
     result = thingsboard_service.stop_gateway()
     thingsboard_service.invalidate_status_cache()
@@ -201,7 +201,7 @@ async def stop_gateway(user=Depends(get_current_user)):
 
 
 @router.get("/gateway-status", response_model=GatewayComprehensiveStatus)
-async def get_gateway_container_status(
+def get_gateway_container_status(
     force_refresh: bool = Query(False, description="Bypass cache and force fresh status check"),
     user=Depends(get_current_user)
 ):
@@ -217,13 +217,13 @@ async def get_gateway_container_status(
 
 
 @router.get("/logs", response_model=Dict[str, Any])
-async def get_gateway_logs(lines: int = 100, user=Depends(get_current_user)):
+def get_gateway_logs(lines: int = 100, user=Depends(get_current_user)):
     """Get recent gateway logs."""
     return thingsboard_service.get_gateway_logs(lines)
 
 
 @router.get("/compose-preview", response_model=Dict[str, Any])
-async def preview_docker_compose(user=Depends(get_current_user)):
+def preview_docker_compose(user=Depends(get_current_user)):
     """Preview the docker-compose.yml that would be generated."""
     try:
         content = thingsboard_service.generate_docker_compose()

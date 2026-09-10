@@ -26,6 +26,8 @@ class WatchdogService:
         self._running = False
         self._thread: Optional[threading.Thread] = None
         self._lock = threading.Lock()
+        self._stop_event = threading.Event()
+        self._lifecycle_lock = threading.RLock()
 
         # Failure counters
         self._failures: Dict[str, int] = {
@@ -57,29 +59,39 @@ class WatchdogService:
     def _save_config(self):
         """Save watchdog configuration to disk."""
         self._config_file.parent.mkdir(parents=True, exist_ok=True)
-        with open(self._config_file, 'w') as f:
-            json.dump(self._config.model_dump(), f)
+        temporary = self._config_file.with_suffix('.tmp')
+        temporary.write_text(json.dumps(self._config.model_dump()))
+        temporary.replace(self._config_file)
 
     def get_config(self) -> WatchdogConfig:
         """Get current watchdog configuration."""
         return self._config
 
     def set_config(self, config: WatchdogConfig):
-        """Set watchdog configuration."""
-        self._config = config
-        self._save_config()
-
-        if config.enabled and not self._running:
-            self.start()
-        elif not config.enabled and self._running:
-            self.stop()
+        """Persist the setting and apply it without concurrent start/stop races."""
+        with self._lifecycle_lock:
+            previous = self._config
+            self._config = config
+            try:
+                self._save_config()
+                if config.enabled and not self._running:
+                    self.start()
+                elif not config.enabled and self._running:
+                    self.stop()
+            except Exception:
+                self._config = previous
+                self._save_config()
+                raise
 
     def get_status(self) -> WatchdogStatus:
         """Get watchdog status."""
         services = []
 
         # Check VPN service
-        vpn_status = self._check_service_status("openvpn-client@client")
+        from .vpn_service import vpn_service
+        vpn = vpn_service.get_status()
+        vpn_status = {"active": vpn.connected, "running": vpn.connected,
+                      "enabled": vpn_service.get_autostart().enabled}
         services.append(ServiceStatus(
             name="vpn",
             active=vpn_status["active"],
@@ -176,22 +188,31 @@ class WatchdogService:
             logger.warning(f"Failed to check modem: {e}")
             return False
 
-    def start(self):
-        """Start the watchdog."""
-        if self._running:
-            return
+    def set_enabled(self, enabled: bool):
+        with self._lifecycle_lock:
+            self.set_config(self._config.model_copy(update={"enabled": enabled}))
 
-        self._running = True
-        self._thread = threading.Thread(target=self._run, daemon=True)
-        self._thread.start()
-        logger.info("Watchdog started")
+    def start(self):
+        with self._lifecycle_lock:
+            """Start the watchdog."""
+            if self._running or not self._config.enabled:
+                return
+            if self._thread and self._thread.is_alive():
+                raise RuntimeError("Watchdog is still stopping; retry shortly")
+            self._stop_event.clear()
+            self._running = True
+            self._thread = threading.Thread(target=self._run, daemon=True)
+            self._thread.start()
+            logger.info("Watchdog started")
 
     def stop(self):
-        """Stop the watchdog."""
-        self._running = False
-        if self._thread:
-            self._thread.join(timeout=5)
-        logger.info("Watchdog stopped")
+        with self._lifecycle_lock:
+            """Stop the watchdog."""
+            self._running = False
+            self._stop_event.set()
+            if self._thread:
+                self._thread.join(timeout=5)
+            logger.info("Watchdog stopped")
 
     def _run(self):
         """Main watchdog loop."""
@@ -202,7 +223,7 @@ class WatchdogService:
             except Exception as e:
                 logger.error(f"Watchdog check error: {e}")
 
-            time.sleep(self._config.check_interval)
+            self._stop_event.wait(self._config.check_interval)
 
     def _check_all(self):
         """Check all monitored services."""
@@ -216,6 +237,8 @@ class WatchdogService:
                 if self._failures["vpn"] >= self._config.vpn_max_failures:
                     self._recover_vpn()
 
+        if self._stop_event.is_set():
+            return
         # Check Modem
         modem_ok = self._check_modem()
         with self._lock:
@@ -226,6 +249,8 @@ class WatchdogService:
                 if self._failures["modem"] >= self._config.modem_max_failures:
                     self._recover_modem()
 
+        if self._stop_event.is_set():
+            return
         # Check Gateway
         gateway_ok = self._check_gateway_container()
         with self._lock:
@@ -240,6 +265,8 @@ class WatchdogService:
         """Check VPN connection is active."""
         try:
             from .vpn_service import vpn_service
+            if not vpn_service.get_current_type():
+                return True  # No VPN configured: there is nothing to recover.
             status = vpn_service.get_status()
             return status.connected
         except Exception:
@@ -252,7 +279,8 @@ class WatchdogService:
         try:
             from .vpn_service import vpn_service
             vpn_service.disconnect()
-            time.sleep(2)
+            if self._stop_event.wait(2):
+                return
             vpn_service.connect()
 
             self._last_restart["vpn"] = datetime.now()
@@ -270,7 +298,8 @@ class WatchdogService:
         try:
             from .modem_service import modem_service
             modem_service.reset()
-            time.sleep(10)
+            if self._stop_event.wait(10):
+                return
             modem_service.connect()
 
             self._last_restart["modem"] = datetime.now()

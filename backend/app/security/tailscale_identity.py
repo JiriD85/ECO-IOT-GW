@@ -31,7 +31,10 @@ _CACHE_TTL = 60.0
 def client_ip(request) -> str:
     """Real peer IP. Prefer nginx's X-Real-IP; never trust X-Forwarded-For here."""
     xreal = request.headers.get("X-Real-IP")
-    if xreal:
+    # Only a local reverse proxy may supply the peer address. Direct clients
+    # must not be able to authenticate by spoofing a tailnet X-Real-IP header.
+    peer = request.client.host if getattr(request, 'client', None) else ''
+    if xreal and peer in ('127.0.0.1', '::1'):
         return xreal.strip()
     if getattr(request, "client", None):
         return request.client.host or ""
@@ -75,4 +78,4 @@ def identity_for_request(request) -> Optional[str]:
     ip = client_ip(request)
     if not is_tailnet_ip(ip):
         return None
-    return whois(ip) or "tailnet user"
+    return whois(ip)

@@ -1,510 +1,171 @@
-"""
-ECO-IOT-GW Backup Service
-System backup and restore functionality for IoT Gateway
-
-Handles:
-- Creating tar.gz backups with manifest metadata
-- Validating backup integrity and security
-- Restoring system configuration from backups
-- Path traversal protection during extraction
-- Audit logging for all backup operations
-
-Security features:
-- Manifest validation (version check)
-- Path traversal detection and prevention
-- Symlink attack prevention
-- Proper file permissions on restore
-"""
+"""Bounded configuration archives. No operating system, live DB, or identity cloning."""
+import asyncio
+import hashlib
 import io
 import json
-import logging
-import platform
-import subprocess
+import os
+import shutil
 import tarfile
+import tempfile
 import uuid
-from datetime import datetime
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from datetime import datetime, timezone
+from pathlib import Path, PurePosixPath
 
 from ..config import settings
 from .audit_service import audit_service
 
-logger = logging.getLogger(__name__)
-
 
 class BackupService:
-    """Service for managing system backups and restores."""
-
-    # Critical configuration paths to backup
+    MAX_BYTES = 128 * 1024 * 1024
+    MAX_FILES = 10000
+    # Explicit roots: never accept paths chosen by an uploaded manifest.
     BACKUP_PATHS = [
-        Path("/etc/eco-iot-gw/"),
-        Path("/etc/openvpn/"),
-        Path("/etc/wireguard/"),
-        Path("/etc/thingsboard-gateway/config/"),
-        Path("/etc/chrony/"),
-        Path("/var/lib/eco-iot-gw/audit/")
+        Path('/etc/eco-iot-gw'), Path('/etc/openvpn'), Path('/etc/wireguard'),
+        Path('/etc/chrony'), Path('/etc/NetworkManager/system-connections'),
+        Path('/etc/thingsboard-gateway/config'), Path('/opt/eco/tb-gateway/config'),
+        Path('/var/lib/eco-iot-gw/branding'), Path('/var/lib/eco-iot-gw/thingsboard'),
+        Path('/var/lib/eco-iot-gw/docker-compose'), Path('/var/lib/eco-iot-gw/vpn'),
+        *[Path('/var/lib/eco-iot-gw') / name for name in
+          ('modem_config.json', 'sms_config.json', 'watchdog_config.json', 'serial_config.json')],
     ]
 
-    def __init__(self):
-        """Initialize backup service with temp directory configuration."""
-        self.temp_dir = Path("/tmp/eco-iot-gw-backups")
-        self.temp_dir.mkdir(parents=True, exist_ok=True)
+    def __init__(self, root=Path('/'), temp_dir=None):
+        self.root = Path(root).resolve()
+        self.temp_dir = Path(temp_dir or tempfile.gettempdir()) / 'eco-iot-gw-backups'
+        self.temp_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
 
-    def _run_command(
-        self, cmd: List[str], sudo: bool = False
-    ) -> Tuple[str, str, int]:
-        """
-        Execute a command with optional sudo.
+    def _path(self, name):
+        parts = PurePosixPath(name)
+        if parts.is_absolute() or '..' in parts.parts or '\\' in name or ':' in name:
+            raise ValueError('Invalid archive path')
+        allowed = [PurePosixPath(str(p).replace('\\', '/').lstrip('/')) for p in self.BACKUP_PATHS]
+        if not any(parts == p or parts.is_relative_to(p) for p in allowed):
+            raise ValueError(f'Path is outside configuration roots: {name}')
+        path = self.root.joinpath(*parts.parts)
+        if not path.resolve().is_relative_to(self.root):
+            raise ValueError('Path leaves restore root')
+        for parent in [path, *path.parents]:
+            if parent == self.root:
+                break
+            if parent.is_symlink():
+                raise ValueError('Symlinks are not supported in configuration backups')
+        return path
 
-        Args:
-            cmd: Command and arguments as list
-            sudo: Whether to run with sudo
-
-        Returns:
-            Tuple of (stdout, stderr, returncode)
-        """
+    def _create(self):
+        files = {}
+        total = 0
+        for configured in self.BACKUP_PATHS:
+            name = configured.as_posix().lstrip('/')
+            source = self._path(name)
+            if not source.exists():
+                continue
+            for item in ([source] if source.is_file() else sorted(source.rglob('*'))):
+                relative = item.relative_to(self.root).as_posix()
+                self._path(relative)
+                if item.is_dir():
+                    continue
+                if not item.is_file():
+                    raise ValueError('Only regular configuration files can be archived')
+                total += item.stat().st_size
+                if total > self.MAX_BYTES or len(files) >= self.MAX_FILES:
+                    raise ValueError('Configuration backup exceeds size limit')
+                data = item.read_bytes()
+                files[relative] = (data, item.stat().st_mode & 0o777)
+        manifest = {'version': '1.1', 'created_at': datetime.now(timezone.utc).isoformat(),
+                    'hostname': __import__('socket').gethostname(), 'app_version': settings.APP_VERSION,
+                    'paths': list(files), 'sha256': {n: hashlib.sha256(d).hexdigest() for n, (d, _) in files.items()}}
+        destination = self.temp_dir / f'eco-config-{uuid.uuid4().hex}.tar.gz'
         try:
-            if sudo:
-                cmd = ["sudo"] + cmd
+            with destination.open('xb') as stream:
+                os.chmod(destination, 0o600)
+                with tarfile.open(fileobj=stream, mode='w:gz') as archive:
+                    for name, data, mode in [('backup-manifest.json', json.dumps(manifest).encode(), 0o600),
+                                              *[(n, d, m) for n, (d, m) in files.items()]]:
+                        member = tarfile.TarInfo(name)
+                        member.size, member.mode = len(data), mode
+                        archive.addfile(member, io.BytesIO(data))
+            return {'success': True, 'backup_file': str(destination), 'backup_filename': destination.name,
+                    'manifest': manifest, 'size': destination.stat().st_size}
+        except Exception:
+            destination.unlink(missing_ok=True)
+            raise
 
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=30
-            )
-            return result.stdout, result.stderr, result.returncode
+    def _read(self, file_path):
+        contents = {}
+        total = 0
+        with tarfile.open(file_path, 'r:gz') as archive:
+            for i, member in enumerate(archive):
+                if i > self.MAX_FILES or not (member.isfile() or member.isdir()):
+                    raise ValueError('Archive contains unsupported members')
+                if member.name != 'backup-manifest.json':
+                    self._path(member.name)
+                if member.isdir():
+                    continue
+                total += member.size
+                if member.size < 0 or total > self.MAX_BYTES or member.name in contents:
+                    raise ValueError('Archive size limit or duplicate member')
+                contents[member.name] = (archive.extractfile(member).read(), member.mode & 0o777)
+        if 'backup-manifest.json' not in contents:
+            raise ValueError('Backup missing manifest')
+        manifest = json.loads(contents.pop('backup-manifest.json')[0])
+        if manifest.get('version') not in ('1.0', '1.1'):
+            raise ValueError('Unsupported backup version')
+        if manifest['version'] == '1.1':
+            actual = {n: hashlib.sha256(data).hexdigest() for n, (data, _) in contents.items()}
+            if manifest.get('sha256') != actual:
+                raise ValueError('Backup checksum mismatch')
+        return manifest, contents
 
-        except subprocess.TimeoutExpired:
-            logger.error(f"Command timed out: {' '.join(cmd)}")
-            return "", "Command timed out", -1
-        except Exception as e:
-            logger.error(f"Command failed: {' '.join(cmd)} - {e}")
-            return "", str(e), -1
+    async def validate_backup(self, file_path):
+        manifest, _ = await asyncio.to_thread(self._read, file_path)
+        return manifest
 
-    async def create_backup(
-        self,
-        username: str = "system",
-        ip_address: str = "127.0.0.1"
-    ) -> Dict[str, Any]:
-        """
-        Create a tar.gz backup of critical system configuration.
-
-        Creates a backup archive containing:
-        - All paths from BACKUP_PATHS that exist
-        - Manifest JSON with metadata (version, timestamp, hostname, etc.)
-
-        Args:
-            username: User creating the backup (for audit)
-            ip_address: Client IP (for audit)
-
-        Returns:
-            Dictionary with success status, backup file path, and metadata
-        """
+    def _restore(self, file_path):
+        manifest, contents = self._read(file_path)  # Validate everything before the first write.
+        previous = {}
         try:
-            # Generate backup filename with timestamp
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            backup_id = str(uuid.uuid4())[:8]
-            backup_filename = f"eco-iot-gw-backup_{timestamp}_{backup_id}.tar.gz"
-            backup_path = self.temp_dir / backup_filename
+            for name, (data, mode) in contents.items():
+                destination = self._path(name)
+                previous[name] = ((destination.read_bytes(), destination.stat().st_mode & 0o777)
+                                  if destination.exists() else None)
+                self._replace(destination, data, mode)
+        except Exception:
+            for name, old in previous.items():
+                destination = self._path(name)
+                if old is None:
+                    destination.unlink(missing_ok=True)
+                else:
+                    self._replace(destination, *old)
+            raise
+        return {'success': True, 'message': 'Configuration restored. Reboot to apply it.',
+                'restored_paths': list(contents), 'manifest': manifest}
 
-            # Create manifest
-            manifest = {
-                "version": "1.0",
-                "created_at": datetime.now().isoformat(),
-                "hostname": platform.node(),
-                "app_version": settings.APP_VERSION,
-                "paths": []
-            }
-
-            # Create tar.gz archive
-            with tarfile.open(backup_path, mode='w:gz', format=tarfile.PAX_FORMAT) as tar:
-                # Add manifest as first member
-                manifest_json = json.dumps(manifest, indent=2)
-                manifest_bytes = manifest_json.encode('utf-8')
-                manifest_info = tarfile.TarInfo(name='backup-manifest.json')
-                manifest_info.size = len(manifest_bytes)
-                manifest_info.mtime = int(datetime.now().timestamp())
-                tar.addfile(manifest_info, io.BytesIO(manifest_bytes))
-
-                # Add each existing path from BACKUP_PATHS
-                for path in self.BACKUP_PATHS:
-                    if path.exists():
-                        # Remove leading slash for archive name
-                        arcname = str(path).lstrip('/')
-                        tar.add(str(path), arcname=arcname, recursive=True)
-                        manifest["paths"].append(str(path))
-                        logger.debug(f"Added to backup: {path} as {arcname}")
-                    else:
-                        logger.warning(f"Skipping non-existent path: {path}")
-
-                # Update manifest with actual paths included
-                manifest_json = json.dumps(manifest, indent=2)
-                manifest_bytes = manifest_json.encode('utf-8')
-                manifest_info = tarfile.TarInfo(name='backup-manifest.json')
-                manifest_info.size = len(manifest_bytes)
-                manifest_info.mtime = int(datetime.now().timestamp())
-
-                # Re-add manifest with updated paths (tarfile will overwrite)
-                # Actually, we need to recreate the archive with the updated manifest
-                # For simplicity, we'll update the manifest paths before adding files
-
-            # Recreate archive with correct manifest
-            backup_path.unlink()  # Remove the incomplete archive
-
-            with tarfile.open(backup_path, mode='w:gz', format=tarfile.PAX_FORMAT) as tar:
-                # Build paths list first
-                included_paths = []
-                for path in self.BACKUP_PATHS:
-                    if path.exists():
-                        included_paths.append(str(path))
-
-                # Update manifest
-                manifest["paths"] = included_paths
-
-                # Add manifest as first member
-                manifest_json = json.dumps(manifest, indent=2)
-                manifest_bytes = manifest_json.encode('utf-8')
-                manifest_info = tarfile.TarInfo(name='backup-manifest.json')
-                manifest_info.size = len(manifest_bytes)
-                manifest_info.mtime = int(datetime.now().timestamp())
-                tar.addfile(manifest_info, io.BytesIO(manifest_bytes))
-
-                # Add each path
-                for path in self.BACKUP_PATHS:
-                    if path.exists():
-                        arcname = str(path).lstrip('/')
-                        tar.add(str(path), arcname=arcname, recursive=True)
-                        logger.debug(f"Added to backup: {path} as {arcname}")
-
-            # Get backup file size
-            backup_size = backup_path.stat().st_size
-
-            # Log audit
-            audit_service.log(
-                username=username,
-                action="backup_create",
-                resource="system",
-                ip_address=ip_address,
-                success=True,
-                details={
-                    "backup_file": backup_filename,
-                    "backup_size": backup_size,
-                    "paths_included": manifest["paths"],
-                    "hostname": manifest["hostname"]
-                }
-            )
-
-            logger.info(
-                f"Backup created successfully: {backup_filename} "
-                f"({backup_size} bytes, {len(manifest['paths'])} paths)"
-            )
-
-            return {
-                "success": True,
-                "message": "Backup created successfully",
-                "backup_file": str(backup_path),
-                "backup_filename": backup_filename,
-                "backup_size": backup_size,
-                "manifest": manifest
-            }
-
-        except Exception as e:
-            error_msg = f"Failed to create backup: {e}"
-            logger.error(error_msg)
-
-            audit_service.log(
-                username=username,
-                action="backup_create",
-                resource="system",
-                ip_address=ip_address,
-                success=False,
-                details={"error": error_msg}
-            )
-
-            return {"success": False, "message": error_msg}
-
-    async def validate_backup(self, file_path: Path) -> Dict[str, Any]:
-        """
-        Validate a backup file for integrity and security.
-
-        Checks:
-        - Backup contains backup-manifest.json
-        - Manifest version is "1.0"
-        - Archive is readable
-
-        Args:
-            file_path: Path to backup file
-
-        Returns:
-            Dictionary with manifest data if valid
-
-        Raises:
-            ValueError: If backup is invalid or untrusted
-        """
+    @staticmethod
+    def _replace(destination, data, mode):
+        destination.parent.mkdir(parents=True, exist_ok=True, mode=0o755)
+        fd, temporary = tempfile.mkstemp(dir=destination.parent)
         try:
-            if not file_path.exists():
-                raise ValueError(f"Backup file not found: {file_path}")
+            with os.fdopen(fd, 'wb') as stream:
+                stream.write(data)
+                os.fchmod(stream.fileno(), mode) if hasattr(os, 'fchmod') else None
+            os.replace(temporary, destination)
+        finally:
+            Path(temporary).unlink(missing_ok=True)
 
-            # Open tarfile in read mode
-            with tarfile.open(file_path, mode='r:gz') as tar:
-                # Look for manifest
-                manifest_member = None
-                for member in tar.getmembers():
-                    if member.name == 'backup-manifest.json':
-                        manifest_member = member
-                        break
-
-                if not manifest_member:
-                    raise ValueError("Backup missing manifest file (backup-manifest.json)")
-
-                # Extract and parse manifest
-                manifest_file = tar.extractfile(manifest_member)
-                if not manifest_file:
-                    raise ValueError("Failed to read manifest from backup")
-
-                manifest_json = manifest_file.read().decode('utf-8')
-                manifest = json.loads(manifest_json)
-
-                # Validate version
-                if manifest.get("version") != "1.0":
-                    raise ValueError(
-                        f"Unsupported backup version: {manifest.get('version')}. "
-                        f"Expected version 1.0"
-                    )
-
-                logger.info(
-                    f"Backup validated: {file_path.name} "
-                    f"(created: {manifest.get('created_at')}, "
-                    f"hostname: {manifest.get('hostname')})"
-                )
-
-                return manifest
-
-        except json.JSONDecodeError as e:
-            raise ValueError(f"Invalid manifest JSON: {e}")
-        except tarfile.TarError as e:
-            raise ValueError(f"Invalid tar archive: {e}")
-        except Exception as e:
-            raise ValueError(f"Backup validation failed: {e}")
-
-    def _validate_tar_member(self, member: tarfile.TarInfo, target_dir: Path) -> None:
-        """
-        Validate a tar member for security issues.
-
-        Security checks:
-        - Reject absolute paths (path traversal)
-        - Reject paths outside target directory (path traversal)
-        - Reject symlinks (symlink attacks)
-
-        Args:
-            member: Tar member to validate
-            target_dir: Target extraction directory
-
-        Raises:
-            ValueError: If member is unsafe
-        """
-        # Reject absolute paths
-        if member.name.startswith('/'):
-            raise ValueError(
-                f"Security violation: absolute path in archive: {member.name}"
-            )
-
-        # Resolve and check path is relative to target
-        member_path = target_dir / member.name
+    async def _operation(self, operation, username, ip_address, *args):
         try:
-            resolved = member_path.resolve()
-            if not resolved.is_relative_to(target_dir.resolve()):
-                raise ValueError(
-                    f"Security violation: path traversal detected: {member.name}"
-                )
-        except Exception as e:
-            raise ValueError(
-                f"Security violation: invalid path: {member.name} ({e})"
-            )
+            result = await asyncio.to_thread(operation, *args)
+        except Exception as exc:
+            result = {'success': False, 'message': str(exc)}
+        audit_service.log(username=username, action='backup_' + operation.__name__.lstrip('_'),
+                          resource='system', ip_address=ip_address, success=result['success'])
+        return result
 
-        # Reject symlinks and hard links
-        if member.issym() or member.islnk():
-            raise ValueError(
-                f"Security violation: symlink/hardlink not allowed: {member.name}"
-            )
+    async def create_backup(self, username='system', ip_address='127.0.0.1'):
+        return await self._operation(self._create, username, ip_address)
 
-    async def restore_backup(
-        self,
-        file_path: Path,
-        username: str = "system",
-        ip_address: str = "127.0.0.1"
-    ) -> Dict[str, Any]:
-        """
-        Restore system configuration from a backup file.
-
-        Process:
-        1. Validate backup integrity and manifest
-        2. Validate all tar members for security
-        3. Extract files to system locations with sudo
-        4. Set proper permissions for sensitive files
-        5. Log audit trail
-
-        Args:
-            file_path: Path to backup file
-            username: User performing restore (for audit)
-            ip_address: Client IP (for audit)
-
-        Returns:
-            Dictionary with success status and restored paths
-        """
-        try:
-            # Validate backup first
-            manifest = await self.validate_backup(file_path)
-
-            # Create temporary extraction directory
-            extract_dir = self.temp_dir / f"restore_{uuid.uuid4().hex[:8]}"
-            extract_dir.mkdir(parents=True, exist_ok=True)
-
-            restored_paths = []
-
-            # Open tarfile and validate all members
-            with tarfile.open(file_path, mode='r:gz') as tar:
-                # First pass: validate all members
-                for member in tar.getmembers():
-                    # Skip manifest
-                    if member.name == 'backup-manifest.json':
-                        continue
-
-                    # Validate member
-                    self._validate_tar_member(member, extract_dir)
-
-                # Second pass: extract files
-                for member in tar.getmembers():
-                    # Skip manifest
-                    if member.name == 'backup-manifest.json':
-                        continue
-
-                    # Extract to temp directory
-                    tar.extract(member, path=extract_dir)
-
-                    # Map archived path back to original location
-                    # Archive paths are like "etc/eco-iot-gw/..." -> "/etc/eco-iot-gw/..."
-                    original_path = Path('/') / member.name
-
-                    # Copy to system location with sudo
-                    extracted_path = extract_dir / member.name
-
-                    if extracted_path.is_file():
-                        # Ensure parent directory exists
-                        stdout, stderr, rc = self._run_command(
-                            ["mkdir", "-p", str(original_path.parent)],
-                            sudo=True
-                        )
-
-                        # Copy file
-                        stdout, stderr, rc = self._run_command(
-                            ["cp", str(extracted_path), str(original_path)],
-                            sudo=True
-                        )
-
-                        if rc != 0:
-                            logger.warning(
-                                f"Failed to copy {extracted_path} to {original_path}: {stderr}"
-                            )
-                        else:
-                            restored_paths.append(str(original_path))
-                            logger.debug(f"Restored: {original_path}")
-
-                    elif extracted_path.is_dir():
-                        # Create directory
-                        stdout, stderr, rc = self._run_command(
-                            ["mkdir", "-p", str(original_path)],
-                            sudo=True
-                        )
-                        if rc == 0:
-                            restored_paths.append(str(original_path))
-
-            # Set proper permissions for sensitive files
-            # VPN configs should be readable only by root
-            vpn_paths = [
-                "/etc/openvpn",
-                "/etc/wireguard"
-            ]
-            for vpn_path in vpn_paths:
-                if Path(vpn_path).exists():
-                    # Set 600 for WireGuard configs
-                    if vpn_path == "/etc/wireguard":
-                        self._run_command(
-                            ["chmod", "-R", "600", vpn_path],
-                            sudo=True
-                        )
-                    # Set 644 for OpenVPN configs
-                    elif vpn_path == "/etc/openvpn":
-                        self._run_command(
-                            ["chmod", "-R", "644", vpn_path],
-                            sudo=True
-                        )
-
-            # Clean up temporary extraction directory
-            self._run_command(["rm", "-rf", str(extract_dir)], sudo=False)
-
-            # Log audit
-            audit_service.log(
-                username=username,
-                action="backup_restore",
-                resource="system",
-                ip_address=ip_address,
-                success=True,
-                details={
-                    "backup_file": file_path.name,
-                    "restored_paths": restored_paths,
-                    "manifest": {
-                        "created_at": manifest.get("created_at"),
-                        "hostname": manifest.get("hostname"),
-                        "version": manifest.get("version")
-                    }
-                }
-            )
-
-            logger.info(
-                f"Backup restored successfully: {file_path.name} "
-                f"({len(restored_paths)} paths restored)"
-            )
-
-            return {
-                "success": True,
-                "message": "Backup restored successfully",
-                "restored_paths": restored_paths,
-                "manifest": manifest
-            }
-
-        except ValueError as e:
-            # Validation errors
-            error_msg = str(e)
-            logger.error(f"Backup restore validation failed: {error_msg}")
-
-            audit_service.log(
-                username=username,
-                action="backup_restore",
-                resource="system",
-                ip_address=ip_address,
-                success=False,
-                details={"error": error_msg, "backup_file": file_path.name}
-            )
-
-            return {"success": False, "message": error_msg}
-
-        except Exception as e:
-            error_msg = f"Failed to restore backup: {e}"
-            logger.error(error_msg)
-
-            audit_service.log(
-                username=username,
-                action="backup_restore",
-                resource="system",
-                ip_address=ip_address,
-                success=False,
-                details={"error": error_msg, "backup_file": file_path.name}
-            )
-
-            return {"success": False, "message": error_msg}
+    async def restore_backup(self, file_path, username='system', ip_address='127.0.0.1'):
+        return await self._operation(self._restore, username, ip_address, file_path)
 
 
-# Global backup service instance
 backup_service = BackupService()

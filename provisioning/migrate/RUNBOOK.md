@@ -1,3 +1,8 @@
+> **Web UI update:** The new dashboard uses a local Modbus observer and WebSocket stream.
+> The DEBUG-log meter instructions below describe the older UI and are superseded by
+> [LIVE_UI.md](../../docs/LIVE_UI.md). Do not deploy only the new frontend/backend
+> without preparing the observer and shared tmpfs mount.
+
 # RESI → ECO in-place migration — verified runbook
 
 Ground-truth procedure for converting a RESI Doctor-Kit gateway to the ECO stack
@@ -325,3 +330,8 @@ images are per-box and must never be written onto a different unit.
 | Tailscale SSH `Connection closed` after connect | `--ssh` needs an admin-console ACL for the tagged box; leave it off, use real `sshd` + ecoadmin key |
 | Meters page shows devices `pending`, no readings | connector at INFO; set `logLevel: DEBUG` **inside** `configurationJson` (modbus.json) |
 | Meters `values` empty in raw JSON | field is `readings` (list of `{tag,value,unit}`), not `values` |
+
+
+### Web console 2.0.0 upgrade
+
+Run the current `tui.js` without `--skip-artifacts` on the first upgrade. Cached application bundles are checked against source and content hashes; an already-running backend no longer suppresses an upgrade. The new observer phase preserves the existing gateway image/configuration and installs the shared tmpfs telemetry mount before the new UI. See `../../docs/LIVE_UI.md` for rollback locations and the later hardware acceptance checklist. TLS configuration migration is not supported by the UI in this release; existing TLS settings are retained.

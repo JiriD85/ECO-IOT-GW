@@ -1,7 +1,6 @@
 <template>
   <v-tabs v-model="tab" class="mb-4">
       <v-tab value="connectivity">Connectivity</v-tab>
-      <v-tab value="modbus">Modbus Values</v-tab>
       <v-tab value="logs">Gateway Logs</v-tab>
     </v-tabs>
 
@@ -79,43 +78,6 @@
         </v-row>
       </v-window-item>
 
-      <!-- Modbus Values Tab -->
-      <v-window-item value="modbus">
-        <v-card>
-          <v-card-title>
-            Live Modbus Values
-            <v-chip class="ml-2" size="small" color="info">
-              From Gateway Logs
-            </v-chip>
-          </v-card-title>
-          <v-card-text>
-            <v-alert type="info" variant="tonal" class="mb-4">
-              These values are parsed from ThingsBoard Gateway logs. No direct Modbus access is performed to avoid bus conflicts.
-            </v-alert>
-
-            <v-data-table
-              :headers="modbusHeaders"
-              :items="modbusValues"
-              :loading="loading"
-            >
-              <template v-slot:item.timestamp="{ item }">
-                {{ new Date(item.timestamp).toLocaleString() }}
-              </template>
-              <template v-slot:item.value="{ item }">
-                <span class="font-weight-bold">{{ item.value }}</span>
-                <span v-if="item.unit" class="text-grey ml-1">{{ item.unit }}</span>
-              </template>
-            </v-data-table>
-          </v-card-text>
-          <v-card-actions>
-            <v-spacer></v-spacer>
-            <v-btn color="primary" @click="fetchModbusValues" :loading="loading">
-              Refresh
-            </v-btn>
-          </v-card-actions>
-        </v-card>
-      </v-window-item>
-
       <!-- Gateway Logs Tab -->
       <v-window-item value="logs">
         <v-card>
@@ -178,16 +140,8 @@ const tab = ref('connectivity')
 const loading = ref(false)
 const connectivity = ref(null)
 const gatewayStatus = ref(null)
-const modbusValues = ref([])
 const gatewayLogs = ref([])
 const logLevel = ref('ALL')
-
-const modbusHeaders = [
-  { title: 'Device', key: 'device' },
-  { title: 'Register', key: 'register' },
-  { title: 'Value', key: 'value' },
-  { title: 'Timestamp', key: 'timestamp' }
-]
 
 const connectivityItems = computed(() => [
   { name: 'vpn', label: 'VPN Connection', status: connectivity.value?.vpn },
@@ -222,18 +176,6 @@ const fetchConnectivity = async () => {
   }
 }
 
-const fetchModbusValues = async () => {
-  try {
-    loading.value = true
-    const response = await diagnosticsApi.getModbusValues()
-    modbusValues.value = response.data
-  } catch (error) {
-    console.error('Failed to fetch Modbus values:', error)
-  } finally {
-    loading.value = false
-  }
-}
-
 const fetchGatewayLogs = async () => {
   try {
     loading.value = true
@@ -253,7 +195,6 @@ watch(logLevel, () => {
 
 watch(tab, (newTab) => {
   if (newTab === 'connectivity') fetchConnectivity()
-  else if (newTab === 'modbus') fetchModbusValues()
   else if (newTab === 'logs') fetchGatewayLogs()
 })
 

@@ -131,7 +131,8 @@ function canonicalizeGroups(groups, tempTag) {
     ...g,
     timeseries: g.timeseries.map((e) => {
       const { canonicalTag, canonicalDivider, divider, ...rest } = e;
-      const tag = e.tag === 'temperature' && tempTag ? tempTag : (canonicalTag || e.tag);
+      const tag = e.tag === 'temperature' && tempTag ? tempTag
+        : e.tag === 'sensor_error' && tempTag ? tempTag.replace(/_C$/, '_error') : (canonicalTag || e.tag);
       const out = { ...rest, tag };
       if (canonicalDivider !== undefined) out.divider = canonicalDivider;
       return out;
@@ -205,6 +206,8 @@ const TEMP_SENSOR = {
             divider: RTD_DIVIDER,
             canonicalDivider: RTD_DIVIDER,
           },
+          // An AIOX bus response alone does not prove an RTD is plugged in.
+          { tag: 'sensor_error', type: '16uint', functionCode: 4, objectsCount: 1, address: slot + 6 },
         ],
       },
     ];

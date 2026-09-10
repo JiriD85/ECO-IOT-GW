@@ -99,8 +99,12 @@ async def add_security_headers(request: Request, call_next):
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["X-XSS-Protection"] = "1; mode=block"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
-    response.headers["Pragma"] = "no-cache"
+    if request.url.path.startswith('/api'):
+        response.headers.setdefault("Cache-Control", "no-store")
+    elif request.url.path.startswith('/assets/') and response.status_code < 400:
+        response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+    else:
+        response.headers["Cache-Control"] = "no-cache"
 
     if request.url.scheme == "https":
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
@@ -204,13 +208,13 @@ async def api_root():
 # ---------------------------------------------------------------------------
 import os as _os
 from fastapi.responses import FileResponse
-from fastapi.staticfiles import StaticFiles
+from .static_ui import CompressedStaticFiles
 
 _FRONTEND_DIST = _os.environ.get("ECO_FRONTEND_DIST", "/opt/eco/webui/dist")
 if _os.path.isdir(_FRONTEND_DIST):
     _assets = _os.path.join(_FRONTEND_DIST, "assets")
     if _os.path.isdir(_assets):
-        app.mount("/assets", StaticFiles(directory=_assets), name="assets")
+        app.mount("/assets", CompressedStaticFiles(directory=_assets), name="assets")
 
     @app.get("/{full_path:path}", include_in_schema=False)
     async def spa_fallback(full_path: str):
@@ -221,7 +225,10 @@ if _os.path.isdir(_FRONTEND_DIST):
         """
         if full_path.startswith("api"):
             return JSONResponse(status_code=404, content={"detail": "Not Found"})
-        candidate = _os.path.join(_FRONTEND_DIST, full_path)
+        root = _os.path.realpath(_FRONTEND_DIST)
+        candidate = _os.path.realpath(_os.path.join(root, full_path))
+        if _os.path.commonpath([root, candidate]) != root:
+            return JSONResponse(status_code=404, content={"detail": "Not Found"})
         if full_path and _os.path.isfile(candidate):
             return FileResponse(candidate)
         return FileResponse(_os.path.join(_FRONTEND_DIST, "index.html"))
