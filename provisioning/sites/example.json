@@ -17,7 +17,12 @@
     "",
     "internalSerial: on the original card this was /dev/ttyACM1, but the Cinterion LTE",
     "modem also enumerates as ttyACM*, so the numbering is not stable across a rebuild.",
-    "Pin it with a udev rule by USB path."
+    "Pin it with a udev rule by USB path.",
+    "",
+    "emit: 'both' (recommended) ships the fleet CHC_* keys AND the ECO GW canonical keys",
+    "(E_th_*, V_m3, ...) so dashboards bound to either see data -- same registers, purely",
+    "additive. 'canonical' = GW keys only (needs GW-profile calculated fields set up in TB);",
+    "'raw' = RESI CHC_* only. Omitting it defaults to 'raw'."
   ],
 
   "gatewayName": "pke_AT1100_iotgw02",
@@ -28,6 +33,7 @@
   "connectorName": "RS485_PF",
   "logLevel": "INFO",
   "pollPeriod": 30000,
+  "emit": "both",
 
   "serial": {
     "port": "/dev/ttyAMA1",
