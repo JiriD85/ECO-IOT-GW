@@ -8,19 +8,24 @@ ECO-IOT-GW is an IoT Gateway management system for Raspberry Pi (Pi4, Pi5, CM4) 
 
 ## READ FIRST when working on gateway/Modbus/ThingsBoard configuration
 
-[docs/RESI_MIGRATION.md](docs/RESI_MIGRATION.md) — analysis of the RESI Doctor-Kit units
-this project replaces, and the verified P-Flow D116 register map. Contains facts that are
-not derivable from this codebase and that silently corrupt data if guessed:
+**[docs/KNOWLEDGE_BASE.md](docs/KNOWLEDGE_BASE.md)** is the consolidated operational reference
+(telemetry worlds, register map, LTE/modem, WAN model, migration, web console, known issues).
+[docs/RESI_MIGRATION.md](docs/RESI_MIGRATION.md) has the RESI unit analysis + full register map.
+Facts that are not derivable from this codebase and silently corrupt data / break connectivity
+if guessed:
 
 - The MQTT endpoint is `lb-mqtt.pke-iot.expert` (1883 plain / 8883 TLS), **not** the
   ThingsBoard REST host.
 - The P-Flow D116 is **mixed-endian** — each meter needs two slave entries.
 - Its totals are **mantissa + exponent**, so a constant divider is only conditionally right.
-- The temperature sensors are **PT1000 RTDs on the C4's onboard AIOX**, reached at unitId 1
-  over a **second, internal** serial port — not on the meter bus. PT1000 channels 1-16 are
-  registers 41064-41079, one signed 16-bit register each, °C x 100.
-- The LTE modem is **Cinterion**, not Quectel, so `modem_service.py`'s AT commands need
-  checking against this hardware.
+- The temperature sensors (`TS1`/`TS2`) are **PT1000 RTDs on the C4's onboard AIOX**, read as
+  **Modbus unit 255, FC04 (input registers)** on the **same external meter bus** as the P-Flows
+  (slot 0 = TS1, slot 1 = TS2; **degC = int16 / 10**). *(This supersedes an earlier
+  unitId-1 / internal-port / regs 41064-41079 / ×100 guess — that was never how the firmware
+  read temps.)*
+- The LTE modem is a **Quectel EC25** (QMI/`cdc-wdm0`), driven via **ModemManager (`mmcli`) + a
+  NetworkManager GSM connection** (APN `wsim`), **not** raw AT. *(An earlier "Cinterion" note
+  was wrong.)*
 - Child device names must match `ECO_<HWID>_PF1..PF4` / `_TS1..TS2` / `_gw` exactly, with
   the HWID **inherited** from the RESI unit being replaced.
 
