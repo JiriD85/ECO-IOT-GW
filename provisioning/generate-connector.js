@@ -24,28 +24,22 @@ const CONFIG_VERSION = '3.7.8';
 function buildModbusConnector(site) {
   requireFields(site, ['gatewayName', 'hwid', 'serial']);
 
-  // Which telemetry keys the connector emits:
-  //   'raw'       -> the fleet's CHC_* keys on the RESI device profiles.
-  //   'canonical' -> the ECO GW keys (E_th_*, V_m3, T_flow_C, ...) on the "... GW" profiles.
-  //   'both'      -> BOTH key sets, on the GW profiles. A fleet dashboard bound to CHC_*
-  //                  AND the ECO GW pipeline (E_th_*) then both see data. Same registers and
-  //                  scaling -- purely additive, no extra bus addresses read.
-  // `site.emit` wins; the legacy `canonical: true` still maps to 'canonical'.
-  const emit = site.emit || (site.canonical === true ? 'canonical' : 'raw');
-  if (!['raw', 'canonical', 'both'].includes(emit)) throw new Error(`site.emit must be raw|canonical|both, got '${emit}'`);
-  // GW device profiles whenever canonical keys are present (so a gateway-auto-created
-  // device lands on the GW pipeline, not the RESI profile).
-  const gwProfile = emit === 'canonical' || emit === 'both';
+  // The ECO GW pipeline emits canonical keys straight from the connector (no rename
+  // layer). Default stays raw CHC_* so existing raw sites are unaffected.
+  const canonical = site.canonical === true || site.emit === 'canonical';
 
   const slaves = [];
 
-  const pfType = gwProfile ? `${PFLOW_D116.deviceType} GW` : PFLOW_D116.deviceType;
-  const tsType = gwProfile ? `${TEMP_SENSOR.deviceType} GW` : TEMP_SENSOR.deviceType;
+  // In canonical (ECO GW) mode, report the GW device profile names so a device
+  // auto-created by the gateway API lands on the GW pipeline, not the RESI profile.
+  const pfType = canonical ? `${PFLOW_D116.deviceType} GW` : PFLOW_D116.deviceType;
+  const tsType = canonical ? `${TEMP_SENSOR.deviceType} GW` : TEMP_SENSOR.deviceType;
 
   // P-Flow meters live on the external RS485 bus.
   for (const meter of site.pflows || []) {
     requireFields(meter, ['suffix', 'unitId'], `pflows[${meter.suffix || '?'}]`);
-    slaves.push(...expand(site, meter, keyGroups(PFLOW_D116.registerGroups, emit), pfType, site.serial));
+    const groups = canonical ? canonicalizeGroups(PFLOW_D116.registerGroups) : PFLOW_D116.registerGroups;
+    slaves.push(...expand(site, meter, groups, pfType, site.serial));
   }
 
   // Temperature sensors (TS1/TS2) are the onboard C4 AIOX, read as Modbus unit 255 on the
@@ -53,7 +47,8 @@ function buildModbusConnector(site) {
   // slot 1 = TS2/IO02. See device-maps.js for the firmware-verified map.
   for (const sensor of site.tempSensors || []) {
     requireFields(sensor, ['suffix', 'slot'], `tempSensors[${sensor.suffix || '?'}]`);
-    const groups = keyGroups(TEMP_SENSOR.registerGroupsFor(sensor.slot), emit, canonicalTempTag(sensor.suffix));
+    let groups = TEMP_SENSOR.registerGroupsFor(sensor.slot);
+    if (canonical) groups = canonicalizeGroups(groups, canonicalTempTag(sensor.suffix));
     slaves.push(...expand(
       site,
       { ...sensor, unitId: sensor.unitId ?? TEMP_SENSOR.unitId },
@@ -85,30 +80,6 @@ function buildModbusConnector(site) {
       configurationJson: { logLevel: site.logLevel || 'INFO', master: { slaves } },
     },
   };
-}
-
-/** Strip the canonical-only annotations, leaving clean raw (CHC_*) timeseries entries. */
-function rawGroups(groups) {
-  return groups.map((g) => ({
-    ...g,
-    timeseries: g.timeseries.map((e) => { const { canonicalTag, canonicalDivider, ...rest } = e; return rest; }),
-  }));
-}
-
-/**
- * Register groups (→ slaves) for the requested emit mode.
- *
- * 'both' returns the raw groups AND the canonical groups as SEPARATE groups (each becomes
- * its own slave sharing the device's name/unitId). They must be separate slaves because
- * tb-gateway's Modbus connector collapses duplicate register addresses WITHIN one slave to
- * a single tag (last wins) — so two tags on the same address in one slave would drop one.
- * As separate slaves the two key sets are read independently and merge on the shared
- * deviceName. Cost: the shared registers are read twice per poll (fine at this bus rate).
- */
-function keyGroups(groups, emit, tempTag) {
-  if (emit === 'canonical') return canonicalizeGroups(groups, tempTag);
-  if (emit === 'raw') return rawGroups(groups);
-  return [...rawGroups(groups), ...canonicalizeGroups(groups, tempTag)];
 }
 
 /** Expand one physical device into its per-endianness slave entries. */
