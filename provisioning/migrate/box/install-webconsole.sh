@@ -24,6 +24,7 @@ BACKEND_TGZ=${1:-/tmp/webconsole-backend.tgz}
 WHEELS_TGZ=${2:-/tmp/webconsole-wheelhouse.tgz}
 DIST_TGZ=${3:-/tmp/webconsole-dist.tgz}
 RELEASE=${4:?source release hash required}
+REQUIREMENTS=${5:-}
 [[ "$RELEASE" =~ ^[a-f0-9]{64}$ ]] || exit 2
 
 APP=/opt/eco/webui
@@ -38,7 +39,12 @@ trap 'rm -rf "$STAGE"' EXIT
 mkdir -p "$STAGE/backend" "$STAGE/dist" "$APP/wheelhouse"
 tar -xzf "$BACKEND_TGZ" -C "$STAGE/backend"
 tar -xzf "$DIST_TGZ" -C "$STAGE/dist"
-tar -xzf "$WHEELS_TGZ" -C "$APP/wheelhouse"
+if [ "$WHEELS_TGZ" != '-' ]; then
+  tar -xzf "$WHEELS_TGZ" -C "$APP/wheelhouse"
+fi
+if [ -n "$REQUIREMENTS" ]; then
+  cp "$REQUIREMENTS" "$STAGE/backend/requirements-lean.txt"
+fi
 [ -f "$STAGE/dist/index.html" ] || { echo "ERROR: dist/index.html missing"; exit 1; }
 # Retain hashed assets for browser sessions opened before this upgrade.
 if [ -d "$APP/dist/assets" ]; then
@@ -52,7 +58,14 @@ if [ ! -x "$APP/venv/bin/python" ]; then
 fi
 REQ="$STAGE/backend/requirements-lean.txt"
 [ -f "$REQ" ] || REQ="$APP/wheelhouse/requirements-lean.txt"
-"$APP/venv/bin/pip" install --no-index --find-links "$APP/wheelhouse" -r "$REQ" 2>&1 | tail -8
+if [ "$WHEELS_TGZ" = '-' ]; then
+  # No downloads or environment changes in reuse mode. Fail before replacing code
+  # if any requested package/extra is missing or its installed version is too old.
+  "$APP/venv/bin/python" -m pip install --dry-run --no-index -r "$REQ" >/dev/null
+  echo "reusing verified installed Python dependencies"
+else
+  "$APP/venv/bin/pip" install --no-index --find-links "$APP/wheelhouse" -r "$REQ" 2>&1 | tail -8
+fi
 
 echo "== sanity import before replacing running code =="
 (cd "$STAGE/backend" && ECO_ALLOW_DEFAULT_SECRETS=1 "$APP/venv/bin/python" -c "import app.main; print('backend imports OK')")

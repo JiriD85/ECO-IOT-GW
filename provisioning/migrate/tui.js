@@ -1031,17 +1031,20 @@ const PHASES = [
     async run(ctx) {
       const need = artifactPaths(ctx);
       if (!release.validArtifacts(RELEASE_FILE, release.sourceRevision(REPO), need)) throw new Error('Current source artifacts were not verified');
+      await putMany(ctx, [{local:path.join(BOXDIR,'requirements-webconsole.txt'),remote:'/tmp/webconsole-requirements.txt'}], 'checking installed Python dependencies…');
+      const reuse = sh(ctx, asRoot(ctx, '/opt/eco/webui/venv/bin/python -m pip install --dry-run --no-index -r /tmp/webconsole-requirements.txt >/dev/null 2>&1')).code === 0;
+      if (reuse) info('installed dependencies satisfy this release; skipping wheelhouse upload');
       await putMany(ctx, [
         { local: path.join(PROV, 'setup-secrets.sh'), remote: '/tmp/setup-secrets.sh' },
         { local: path.join(BOXDIR, 'install-webconsole.sh'), remote: '/tmp/install-webconsole.sh' },
         { local: need.backend, remote: '/tmp/webconsole-backend.tgz' },
-        { local: need.wheels, remote: '/tmp/webconsole-wheelhouse.tgz' },
+        ...(!reuse ? [{ local: need.wheels, remote: '/tmp/webconsole-wheelhouse.tgz' }] : []),
         { local: need.dist, remote: '/tmp/webconsole-dist.tgz' },
       ], 'uploading secrets script + console artifacts…');
       step('generating per-device secrets…');
       await stream(ctx, asRoot(ctx, 'chmod +x /tmp/setup-secrets.sh && /tmp/setup-secrets.sh'));
       step('installing web console (systemd, 0.0.0.0:80)…');
-      const r = await stream(ctx, asRoot(ctx, 'chmod +x /tmp/install-webconsole.sh && /tmp/install-webconsole.sh /tmp/webconsole-backend.tgz /tmp/webconsole-wheelhouse.tgz /tmp/webconsole-dist.tgz ' + shq(release.sourceRevision(REPO))));
+      const r = await stream(ctx, asRoot(ctx, 'chmod +x /tmp/install-webconsole.sh && /tmp/install-webconsole.sh /tmp/webconsole-backend.tgz ' + (reuse ? '-' : '/tmp/webconsole-wheelhouse.tgz') + ' /tmp/webconsole-dist.tgz ' + shq(release.sourceRevision(REPO)) + ' /tmp/webconsole-requirements.txt'));
       if (r.code !== 0) throw new Error('install-webconsole.sh failed');
       await stream(ctx, asRoot(ctx, 'systemctl restart eco-iot-gw-backend'));
       await ensureEcoadminPassword(ctx);
@@ -1144,9 +1147,7 @@ async function mustLocal(cmd, args, cwd, what) {
 
 function dirHasWheels(dir) { try { return fs.readdirSync(dir).some(f => f.endsWith('.whl')); } catch { return false; } }
 function writeLeanReq(p) {
-  fs.writeFileSync(p, ['fastapi>=0.109.0', 'uvicorn[standard]>=0.27.0', 'python-multipart>=0.0.6',
-    'python-jose[cryptography]>=3.3.0', 'bcrypt>=4.1.0', 'pydantic>=2.5.0', 'pydantic-settings>=2.1.0',
-    'aiosqlite>=0.19.0', 'docker>=7.0.0', 'pyyaml>=6.0.1', 'websockets>=12.0', 'httpx>=0.26.0', 'phonenumbers>=8.13.0'].join('\n') + '\n');
+  fs.copyFileSync(path.join(BOXDIR,'requirements-webconsole.txt'), p);
 }
 // ---------- credential ledger ----------
 // One CSV for the whole fleet, keyed by kit, so doing several units back to back leaves a

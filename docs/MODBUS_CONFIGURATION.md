@@ -68,9 +68,26 @@ require hardware acceptance testing before production rollout.
 
 ## Verification
 
+For remote updates, `tui.js` first uploads the small requirements file and runs
+pip's offline dry-run against the installed environment. When all dependencies
+(including requested extras) are already satisfied, it skips the wheelhouse SCP
+transfer. The installer repeats that check before replacing application files.
+Missing/incompatible dependencies retain the full offline-wheelhouse path.
+The install script accepts `-` as its wheelhouse argument for verified reuse;
+its fifth argument is the release's requirements file.
+
 Local tests cover profile parity, four PFlows/two inputs, manual-field retention,
 revision conflicts, invalid writes, offline restoration, cloud guard application,
 observer preservation and initial-sync acknowledgement. The loopback preview has
 an isolated temporary configuration sandbox. No hardware or cloud writes are
-performed by these tests. Actual MQTT synchronization and serial behavior must be
-validated with Gateway 3.7.8 and the intended ThingsBoard server before rollout.
+performed by these tests.
+
+Remote acceptance on RESI-C4 (2026-09-13) verified dependency reuse, service health,
+Tailscale authentication, matching ThingsBoard connector acknowledgement, a fresh
+local Modbus WebSocket delta and continued ThingsBoard PFlow telemetry using the
+kit's existing gateway image and device mappings. One PFlow responded; the two
+AIOX temperature inputs reported fault codes 129 and 1. The legacy configuration
+also exposes both raw CHC and canonical PFlow fields, producing duplicate dashboard
+readings and a generic device heading. This presentation issue remains unresolved.
+Physical unplug/reconnect recovery and simultaneous operation of all four PFlows
+still require hardware acceptance testing.
