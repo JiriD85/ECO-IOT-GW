@@ -107,3 +107,8 @@
 .meter-card:not(.temperature-card) .primary-readings>div{grid-column:span 1;border:1px solid var(--border);border-radius:9px;padding:12px;background:var(--bg)}
 .meter-card:not(.temperature-card) .primary-readings>.energy-counter{grid-column:1/-1}
 .meter-card:not(.temperature-card) .primary-readings>.energy-counter .reading-number{font-size:24px}
+/* All accumulating values share one chart-free counter panel. */
+.meter-card:not(.temperature-card) .primary-readings>.counter-group{grid-column:1/-1}
+.counter-group .reading-values{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px 12px}
+.counter-group .reading-values>.wide-counter{grid-column:1/-1}
+.counter-group .reading-values>div+div{border-top:1px solid var(--border);padding-top:10px}
