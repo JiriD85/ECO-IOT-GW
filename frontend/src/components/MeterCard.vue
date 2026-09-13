@@ -5,9 +5,9 @@
       <h3 v-else-if="device.role === 'temperature'" class="sensor-title" :aria-label="device.label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M9 14V5a3 3 0 0 1 6 0v9a5 5 0 1 1-6 0Z M12 7v10"/><circle cx="12" cy="18" r="1.5" fill="currentColor"/></svg>{{ pflowNumber }}</h3><h3 v-else>{{ device.label }}</h3>
     </div><span class="state-badge" :class="device.displayLink"><i></i>{{ linkLabel }}</span></header>
     <div v-if="readings.length" class="primary-readings">
-      <div v-for="group in groups" :key="group[0].tag" :class="{ 'paired-temperatures': group.length > 1, 'reading-stale': group.every(stale) }" :data-tone="tone(group[0].tag)">
+      <div v-for="group in groups" :key="group[0].tag" :class="{ 'paired-temperatures': group.length > 1, 'reading-stale': group.every(stale), 'compact-reading': !showTrend(group) }" :data-tone="tone(group[0].tag)">
         <div class="reading-values"><div v-for="r in group" :key="r.tag" :data-tone="tone(r.tag)" :class="{ 'reading-stale': stale(r), 'flow-reading': r.tag === 'Vdot_m3h' }"><span v-if="device.role !== 'temperature'" class="reading-label">{{ group.length > 1 ? (r.tag === 'T_flow_C' ? 'Flow' : 'Return') : label(r.tag) }}</span><div class="reading-number" :title="`${format(r.value)} ${r.unit || ''}`">{{ format(r.value) }} <small>{{ r.unit }}</small></div><small v-if="stale(r)" class="error-text">Last known</small></div></div>
-        <ReadingTrend :points="history[historyKey(device, group[0].tag)] || []" :series="group.length > 1 ? group.map(r => ({ points: history[historyKey(device, r.tag)] || [], tone: tone(r.tag), stale: stale(r) })) : undefined" :unit="group[0].unit" :gap="device.stale_after" />
+        <ReadingTrend v-if="showTrend(group)" :points="history[historyKey(device, group[0].tag)] || []" :series="group.length > 1 ? group.map(r => ({ points: history[historyKey(device, r.tag)] || [], tone: tone(r.tag), stale: stale(r) })) : undefined" :unit="group[0].unit" :gap="device.stale_after" />
       </div>
     </div>
     <div v-else class="meter-empty"><span>Awaiting measurements</span><small>{{ device.displayLink === 'disconnected' ? 'No answer on the latest bus poll.' : 'Values will appear after a successful local read.' }}</small></div>
@@ -30,9 +30,12 @@ const tone = tag => tag === 'Vdot_m3h' || tag === 'v_ms' ? 'flow' : tag === 'T_r
 const format = value => typeof value === 'number' ? value.toLocaleString(undefined, { maximumFractionDigits: 3 }) : '—'
 const linkLabel = computed(() => props.device.sensor_state === 'fault' && props.device.displayLink === 'disconnected' ? 'Sensor fault' : ({ connected: 'Connected', disconnected: 'No response', pending: 'Unknown' })[props.device.displayLink] || 'Unknown')
 const readings = computed(() => displayReadings(props.device))
+const trendTags = ['Vdot_m3h', 'T_flow_C', 'T_return_C', 'V_m3']
+const showTrend = group => group.some(r => trendTags.includes(r.tag))
 const groups = computed(() => {
   const temperatures = readings.value.filter(r => ['T_flow_C', 'T_return_C'].includes(r.tag))
   return readings.value.flatMap(r => temperatures.includes(r) ? (r === temperatures[0] ? [temperatures] : []) : [[r]])
+    .sort((a, b) => Number(showTrend(b)) - Number(showTrend(a)))
 })
 
 const stale = r => props.device.displayLink !== 'connected' || r.stale || (r.last_seen && props.now - Date.parse(r.last_seen) > props.device.stale_after * 1000)
