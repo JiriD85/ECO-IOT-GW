@@ -1,0 +1,144 @@
+{
+  "pflow": [
+    {
+      "byteOrder": "BIG",
+      "wordOrder": "BIG",
+      "timeseries": [
+        {
+          "tag": "Vdot_m3h",
+          "type": "32float",
+          "functionCode": 3,
+          "objectsCount": 2,
+          "address": 5,
+          "divider": 1000
+        },
+        {
+          "tag": "v_ms",
+          "type": "32float",
+          "functionCode": 3,
+          "objectsCount": 2,
+          "address": 7
+        },
+        {
+          "tag": "T_flow_C",
+          "type": "32float",
+          "functionCode": 3,
+          "objectsCount": 2,
+          "address": 74
+        },
+        {
+          "tag": "T_return_C",
+          "type": "32float",
+          "functionCode": 3,
+          "objectsCount": 2,
+          "address": 76
+        }
+      ]
+    },
+    {
+      "byteOrder": "BIG",
+      "wordOrder": "LITTLE",
+      "timeseries": [
+        {
+          "tag": "V_m3",
+          "type": "32int",
+          "functionCode": 3,
+          "objectsCount": 2,
+          "address": 8
+        },
+        {
+          "tag": "V_neg_m3",
+          "type": "32int",
+          "functionCode": 3,
+          "objectsCount": 2,
+          "address": 11
+        },
+        {
+          "tag": "V_net_m3",
+          "type": "32int",
+          "functionCode": 3,
+          "objectsCount": 2,
+          "address": 14
+        },
+        {
+          "tag": "E_th_heating_kWh",
+          "type": "32int",
+          "functionCode": 3,
+          "objectsCount": 2,
+          "address": 77,
+          "divider": 3600
+        },
+        {
+          "tag": "E_th_cooling_kWh",
+          "type": "32int",
+          "functionCode": 3,
+          "objectsCount": 2,
+          "address": 80,
+          "divider": 3600
+        },
+        {
+          "tag": "E_th_heating_exp",
+          "type": "16int",
+          "functionCode": 3,
+          "objectsCount": 1,
+          "address": 79
+        },
+        {
+          "tag": "E_th_cooling_exp",
+          "type": "16int",
+          "functionCode": 3,
+          "objectsCount": 1,
+          "address": 82
+        }
+      ]
+    }
+  ],
+  "pt1000": [
+    [
+      {
+        "byteOrder": "BIG",
+        "wordOrder": "BIG",
+        "timeseries": [
+          {
+            "tag": "auxT1_C",
+            "type": "16int",
+            "functionCode": 4,
+            "objectsCount": 1,
+            "address": 0,
+            "divider": 10
+          },
+          {
+            "tag": "auxT1_error",
+            "type": "16uint",
+            "functionCode": 4,
+            "objectsCount": 1,
+            "address": 6
+          }
+        ]
+      }
+    ],
+    [
+      {
+        "byteOrder": "BIG",
+        "wordOrder": "BIG",
+        "timeseries": [
+          {
+            "tag": "auxT2_C",
+            "type": "16int",
+            "functionCode": 4,
+            "objectsCount": 1,
+            "address": 1,
+            "divider": 10
+          },
+          {
+            "tag": "auxT2_error",
+            "type": "16uint",
+            "functionCode": 4,
+            "objectsCount": 1,
+            "address": 7
+          }
+        ]
+      }
+    ]
+  ]
+}

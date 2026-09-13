@@ -23,7 +23,8 @@ function sourceRevision(repo) {
   for (const entry of ['backend/app', 'frontend/src', 'frontend/package.json', 'frontend/package-lock.json',
     'frontend/index.html', 'frontend/vite.config.js', 'frontend/build-plugins.js', 'frontend/check-build.js',
     'gateway/extensions', 'tools/prepare-live-telemetry.py', 'provisioning/migrate/box',
-    'provisioning/migrate/tui.js', 'provisioning/migrate/lib/release.js']) visit(entry);
+    'provisioning/migrate/tui.js', 'provisioning/migrate/lib', 'provisioning/device-maps.js',
+    'provisioning/generate-connector.js', 'provisioning/migrate/build-gw-config.js']) visit(entry);
   return hash.digest('hex');
 }
 function validArtifacts(manifestFile, revision, files) {

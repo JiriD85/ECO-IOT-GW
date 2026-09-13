@@ -105,7 +105,7 @@ function expand(site, device, registerGroups, deviceType, serial) {
     retries: serial.retries ?? 1,
     retryOnEmpty: false,
     retryOnInvalid: true,
-    pollPeriod: device.pollPeriod ?? site.pollPeriod ?? 30000,
+    pollPeriod: device.pollPeriod ?? site.pollPeriod ?? 60000,
     unitId: device.unitId,
     // Must match the fleet convention exactly or existing dashboards will not bind.
     // `deviceName` override exists only for pointing a test connector at a scratch device.

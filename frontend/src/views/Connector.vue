@@ -1,174 +1,101 @@
 <template>
   <v-container fluid>
     <div class="d-flex align-center flex-wrap mb-4" style="gap:12px">
-      <div>
-        <h1 class="text-h4">Connector</h1>
-        <div class="text-caption text-medium-emphasis">
-          Read-only health of the Modbus connector. Editing is done in ThingsBoard.
-        </div>
-      </div>
-      <v-spacer></v-spacer>
-      <v-btn variant="tonal" :loading="loading" prepend-icon="mdi-refresh" @click="fetchData">Refresh</v-btn>
+      <h1 class="text-h4">Modbus</h1><v-spacer />
+      <v-btn variant="tonal" :loading="busy" @click="load">Refresh</v-btn>
     </div>
-
-    <v-alert
-      v-if="error"
-      type="warning"
-      variant="tonal"
-      density="compact"
-      class="mb-4"
-    >{{ error }}</v-alert>
-
-    <!-- Connector summary -->
-    <v-card class="mb-4">
+    <v-alert v-if="error" type="error" class="mb-4">{{ error }}</v-alert>
+    <v-alert v-if="message" type="info" class="mb-4" closable @click:close="message = ''">{{ message }}</v-alert>
+    <p v-if="!busy && !connectors.length">No active Modbus connectors.</p>
+    <v-card v-for="c in connectors" :key="c.name" class="mb-5">
+      <v-card-title class="d-flex align-center flex-wrap" style="gap:12px">
+        {{ c.name }}
+        <v-chip v-if="c.temporary" color="warning" size="small">Temporary override</v-chip>
+        <v-chip size="small" :color="c.application === 'loaded' ? 'success' : 'warning'">{{ c.application === 'loaded' ? 'Matches last loaded config' : 'Awaiting connector reload' }}</v-chip>
+      </v-card-title>
+      <v-card-actions class="flex-wrap" style="gap:8px">
+        <v-btn :disabled="busy || c.type !== 'eco_modbus'" @click="edit(c)">Add device</v-btn>
+        <v-btn :disabled="busy || !c.can_restore || c.type !== 'eco_modbus'" @click="restore(c)">Restore received cloud config</v-btn>
+      </v-card-actions>
       <v-card-text>
-        <div class="summary-grid">
-          <div class="cell">
-            <div class="lbl">Connector</div>
-            <div class="val">{{ connector.name || '—' }}</div>
-            <div class="text-caption text-medium-emphasis">{{ connector.type || 'Modbus RTU' }}</div>
-          </div>
-          <div class="cell">
-            <div class="lbl">Gateway</div>
-            <v-chip :color="connector.running ? 'success' : 'error'" size="small" variant="tonal">
-              <v-icon start size="x-small">{{ connector.running ? 'mdi-play' : 'mdi-stop' }}</v-icon>
-              {{ connector.running ? 'Running' : 'Stopped' }}
-            </v-chip>
-            <div class="text-caption text-medium-emphasis mono">{{ connector.container || 'tb-gateway' }}</div>
-          </div>
-          <div class="cell">
-            <div class="lbl">ThingsBoard</div>
-            <v-chip :color="connector.thingsboard_linked ? 'success' : 'error'" size="small" variant="tonal">
-              <v-icon start size="x-small">{{ connector.thingsboard_linked ? 'mdi-cloud-check' : 'mdi-cloud-off-outline' }}</v-icon>
-              {{ connector.thingsboard_linked ? 'Linked' : 'Offline' }}
-            </v-chip>
-          </div>
-          <div class="cell">
-            <div class="lbl">Serial bus</div>
-            <div class="val mono">{{ connector.serial_port || '—' }}</div>
-            <div class="text-caption text-medium-emphasis" v-if="connector.baudrate">{{ connector.baudrate }} 8N1</div>
-          </div>
-          <div class="cell">
-            <div class="lbl">Reporting</div>
-            <div class="val">{{ reportingText }}</div>
-          </div>
+        <p class="mb-4 text-medium-emphasis">Local changes work offline. ThingsBoard updates can replace them.</p>
+        <div class="devices">
+          <section v-for="d in devices(c)" :key="d.key" class="device">
+            <div class="d-flex align-center flex-wrap" style="gap:8px">
+              <strong>{{ d.name }}</strong><v-chip size="small">{{ d.profile }}</v-chip><v-spacer />
+              <v-btn size="small" variant="text" :disabled="busy || c.type !== 'eco_modbus'" @click="edit(c, d)">Edit</v-btn>
+            </div>
+            <p class="text-medium-emphasis my-2">{{ d.groups[0].host || d.groups[0].port }} · Address {{ d.groups[0].unitId }} · {{ d.groups[0].pollPeriod / 1000 }} s</p>
+            <v-table density="compact" class="registers">
+              <thead><tr><th>Telemetry</th><th>Register</th><th>Read</th><th>Type</th><th>Scale</th><th>Words</th></tr></thead>
+              <tbody><template v-for="(g, gi) in d.groups" :key="gi"><tr v-for="(t, ti) in [...(g.timeseries || []), ...(g.attributes || [])]" :key="ti">
+                <td>{{ t.tag }}</td><td>{{ t.address }}</td><td>FC{{ t.functionCode }}</td><td>{{ t.type }}</td><td>{{ t.divider ? '÷ ' + t.divider : t.multiplier ? '× ' + t.multiplier : '—' }}</td><td>{{ g.wordOrder }}</td>
+              </tr></template></tbody>
+            </v-table>
+          </section>
         </div>
       </v-card-text>
     </v-card>
-
-    <!-- Slaves -->
-    <v-card>
-      <v-card-title>Configured devices</v-card-title>
-      <v-card-text>
-        <div class="table-scroll">
-          <v-table density="comfortable">
-            <thead>
-              <tr>
-                <th class="text-left">Device</th>
-                <th class="text-left">Addr</th>
-                <th class="text-left">Model</th>
-                <th class="text-left">Last seen</th>
-                <th class="text-left">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="d in devices" :key="d.key || d.name" :class="{ off: d.status === 'no_meter' }">
-                <td>
-                  <div class="dev-name">{{ d.label || d.key }}</div>
-                  <div class="text-caption text-medium-emphasis mono">{{ d.name }}</div>
-                </td>
-                <td class="mono">{{ d.address ?? '—' }}</td>
-                <td class="text-medium-emphasis">{{ d.model || '—' }}</td>
-                <td class="text-medium-emphasis">{{ ageText(d) }}</td>
-                <td>
-                  <v-chip :color="statusColor(d.status)" size="small" variant="tonal">
-                    <v-icon start size="x-small">{{ statusIcon(d.status) }}</v-icon>
-                    {{ statusLabel(d.status) }}
-                  </v-chip>
-                </td>
-              </tr>
-              <tr v-if="!devices.length">
-                <td colspan="5" class="text-center text-medium-emphasis py-6">
-                  No devices reporting. Check wiring and the connector config in ThingsBoard.
-                </td>
-              </tr>
-            </tbody>
-          </v-table>
-        </div>
-      </v-card-text>
-    </v-card>
-
-    <div class="text-caption text-medium-emphasis mt-3">
-      To change which meters are polled, edit the connector in ThingsBoard — the gateway pulls the
-      new config down automatically. This page only reflects what the gateway is currently doing.
-    </div>
+    <v-dialog v-model="dialog" max-width="1000" persistent>
+      <v-card v-if="form">
+        <v-card-title>{{ selected ? 'Edit device' : 'Add device' }}</v-card-title>
+        <v-card-text>
+          <v-alert type="info" variant="tonal" class="mb-4">Temporary local override. Addresses are existing device addresses; this does not reprogram a sensor.</v-alert>
+          <v-alert v-if="formError" type="error" class="mb-4">{{ formError }}</v-alert>
+          <div class="fields">
+            <v-select v-if="!selected" label="Profile" v-model="form.profile" :items="['PFlow D116', 'PT1000 / AIOX', 'Manual']" />
+            <v-text-field label="Device name" v-model="form.name" />
+            <v-text-field label="Serial port" v-model="form.port" :disabled="form.transport !== 'serial'" />
+            <v-text-field v-if="selected || form.profile !== 'PT1000 / AIOX'" label="Modbus address" type="number" v-model.number="form.address" min="1" max="255" />
+            <p v-else>AIOX board · Address 255</p>
+            <v-select v-if="!selected && form.profile === 'PT1000 / AIOX'" label="Input" v-model="form.slot" :items="[{title:'TS1 / IO01',value:0},{title:'TS2 / IO02',value:1}]" />
+            <v-text-field label="Measurement interval (s)" type="number" v-model.number="form.seconds" min="1" />
+          </div>
+          <details class="mb-4"><summary>Bus settings</summary><div class="fields mt-4">
+            <v-text-field label="Baud rate" type="number" v-model.number="form.baudrate" />
+            <v-select label="Parity" v-model="form.parity" :items="['N','E','O']" />
+            <v-select label="Data bits" v-model="form.bytesize" :items="[7,8]" />
+            <v-select label="Stop bits" v-model="form.stopbits" :items="[1,2]" />
+            <v-text-field label="Response timeout (s)" type="number" v-model.number="form.timeout" />
+          </div><p>Serial settings apply to every device on the selected port.</p></details>
+          <template v-if="selected || form.profile === 'Manual'">
+            <section v-for="(g, gi) in form.groups" :key="gi" class="mb-4">
+              <div class="fields"><v-select label="Byte order" v-model="g.byteOrder" :items="['BIG','LITTLE']" /><v-select label="Word order" v-model="g.wordOrder" :items="['BIG','LITTLE']" /></div>
+              <div v-for="(t, ti) in g.timeseries" :key="ti" class="mapping">
+                <v-text-field label="Telemetry" v-model="t.tag" hide-details />
+                <v-text-field label="Register (0-based)" type="number" v-model.number="t.address" hide-details />
+                <v-select label="FC" v-model="t.functionCode" :items="[1,2,3,4]" hide-details />
+                <v-select label="Type" v-model="t.type" :items="['16int','16uint','32int','32uint','32float','64int','64uint','64float','bits','string']" hide-details />
+                <v-text-field label="Count" type="number" v-model.number="t.objectsCount" hide-details />
+                <v-text-field label="Divider" type="number" v-model.number="t.divider" hide-details />
+                <v-btn variant="text" @click="g.timeseries.splice(ti,1)" aria-label="Remove telemetry">×</v-btn>
+              </div>
+              <v-btn variant="text" @click="g.timeseries.push({tag:'value',address:0,functionCode:3,type:'16int',objectsCount:1})">Add telemetry</v-btn>
+            </section>
+            <details><summary>Advanced device JSON</summary><p class="my-2">Preserves custom mappings. Changes here replace the device form.</p><v-textarea v-model="raw" label="Register groups" rows="10" /><v-btn @click="applyRaw">Use JSON</v-btn></details>
+          </template>
+        </v-card-text>
+        <v-card-actions class="flex-wrap"><v-btn v-if="selected" color="error" :disabled="busy" @click="save(true)">Remove device</v-btn><v-spacer /><v-btn :disabled="busy" @click="dialog=false">Cancel</v-btn><v-btn color="primary" :loading="busy" @click="save(false)">Apply temporarily</v-btn></v-card-actions>
+      </v-card>
+    </v-dialog>
   </v-container>
 </template>
-
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { metersApi } from '../services/api'
-import { useSnackbar } from '../composables/useSnackbar'
-
-const { showSnackbar } = useSnackbar()
-
-const connector = ref({})
-const devices = ref([])
-const loading = ref(false)
-const error = ref('')
-const now = ref(Date.now())
-let clock = null
-
-const reportingText = computed(() => {
-  const active = devices.value.filter(d => d.configured !== false && d.status !== 'no_meter')
-  const ok = active.filter(d => d.status === 'ok').length
-  return `${ok} / ${active.length}`
-})
-
-const statusColor = (s) => ({ ok: 'success', stale: 'warning', error: 'error', no_meter: 'grey' }[s] || 'grey')
-const statusIcon = (s) => ({ ok: 'mdi-check-circle', stale: 'mdi-clock-alert', error: 'mdi-alert-circle', no_meter: 'mdi-minus-circle-outline' }[s] || 'mdi-help-circle')
-const statusLabel = (s) => ({ ok: 'OK', stale: 'Stale', error: 'Error', no_meter: 'No report' }[s] || s)
-
-const secondsAgo = (iso) => (iso ? Math.max(0, Math.round((now.value - new Date(iso).getTime()) / 1000)) : null)
-const humanAge = (secs) => {
-  if (secs === null) return '—'
-  if (secs < 60) return `${secs}s ago`
-  if (secs < 3600) return `${Math.floor(secs / 60)}m ago`
-  if (secs < 86400) return `${Math.floor(secs / 3600)}h ago`
-  return `${Math.floor(secs / 86400)}d ago`
-}
-const ageText = (d) => (d.status === 'no_meter' ? '—' : humanAge(secondsAgo(d.last_seen)))
-
-const fetchData = async () => {
-  try {
-    loading.value = true
-    error.value = ''
-    const res = await metersApi.getLatest()
-    connector.value = res.data.connector || {}
-    devices.value = res.data.devices || []
-    now.value = Date.now()
-  } catch (e) {
-    error.value = e.response?.data?.detail || 'Could not read connector status from the gateway.'
-    if (!devices.value.length) showSnackbar(error.value, 'error')
-  } finally {
-    loading.value = false
-  }
-}
-
-onMounted(() => {
-  fetchData()
-  clock = setInterval(() => { now.value = Date.now() }, 1000)
-})
-onUnmounted(() => { if (clock) clearInterval(clock) })
+import { ref, onMounted } from 'vue'
+import api from '../services/api'
+import { groupDevices, buildGroups, replaceDevice } from '../services/modbusConfig'
+const connectors=ref([]), profiles=ref({}), busy=ref(false), error=ref(''), message=ref('')
+const dialog=ref(false), form=ref(null), raw=ref(''), formError=ref('')
+let current=null, selected=null
+const clone=v=>JSON.parse(JSON.stringify(v))
+const devices=c=>groupDevices(c.configuration.master.slaves)
+async function load(){busy.value=true;error.value='';try{const {data}=await api.get('/api/modbus/config',{params:{force_refresh:true}});connectors.value=data.connectors;profiles.value=data.profiles}catch(e){error.value=e.response?.data?.detail||'Could not read Modbus configuration'}finally{busy.value=false}}
+function edit(c,d=null){current=c;selected=d;const s=d?.groups[0]||c.configuration.master.slaves.find(s=>s.type==='serial')||{};form.value={profile:d?.profile||'PFlow D116',name:d?.name||'',port:s.port||'/dev/meterbus',transport:s.type||'serial',address:d?s.unitId:1,seconds:(s.pollPeriod||60000)/1000,baudrate:s.baudrate||9600,parity:s.parity||'N',bytesize:s.bytesize||8,stopbits:s.stopbits||1,timeout:s.timeout||2,slot:0,groups:clone(d?.groups||[{byteOrder:'BIG',wordOrder:'BIG',timeseries:[]}]).map(g=>({...g,timeseries:g.timeseries||[]}))};raw.value=JSON.stringify(form.value.groups,null,2);formError.value='';dialog.value=true}
+function applyRaw(){try{const groups=JSON.parse(raw.value);if(!Array.isArray(groups)||!groups.length)throw Error('Expected an array of register groups');form.value.groups=groups;formError.value=''}catch(e){formError.value=e.message}}
+async function save(remove){busy.value=true;formError.value='';try{const groups=remove?[]:buildGroups(form.value,profiles.value,!!selected);const slaves=replaceDevice(current.configuration.master.slaves,selected,groups,form.value);await api.put('/api/modbus/config/'+encodeURIComponent(current.name),{revision:current.revision,slaves});dialog.value=false;message.value='Saved locally. The gateway reloads configuration on its next check (normally within 60 seconds).';await load()}catch(e){formError.value=e.response?.data?.detail||e.message||'Could not apply configuration'}finally{busy.value=false}}
+async function restore(c){busy.value=true;error.value='';try{await api.post('/api/modbus/config/'+encodeURIComponent(c.name)+'/restore',{revision:c.revision});message.value='Restored the last cloud configuration received by this gateway. Awaiting reload.';await load()}catch(e){error.value=e.response?.data?.detail||'Could not restore configuration'}finally{busy.value=false}}
+onMounted(load)
 </script>
-
 <style scoped>
-.mono { font-family: ui-monospace, "Cascadia Code", "SF Mono", Menlo, Consolas, monospace; }
-.dev-name { font-weight: 600; }
-.table-scroll { overflow-x: auto; }
-.off { opacity: .55; }
-
-.summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 20px; }
-.cell .lbl { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; opacity: .6; margin-bottom: 4px; }
-.cell .val { font-size: 18px; font-weight: 600; }
+.devices{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,440px),1fr));gap:16px}.device{min-width:0;border:1px solid rgba(var(--v-theme-on-surface),.15);border-radius:8px;padding:14px}.registers{overflow:auto}.registers td{white-space:nowrap}.fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}.mapping{display:grid;grid-template-columns:2fr repeat(5,minmax(80px,1fr)) 40px;gap:6px;margin-bottom:10px;overflow:auto}summary{cursor:pointer;padding:10px 0}@media(max-width:650px){.mapping{grid-template-columns:repeat(2,minmax(100px,1fr))}}
 </style>

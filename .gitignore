@@ -66,6 +66,8 @@ backups/
 .coverage
 htmlcov/
 .pytest_cache/
+.test-tmp-*/
+pytest-cache-files-*/
 
 # Credential ledger + per-kit secrets produced by the migration wizard.
 # out/ is already ignored; these patterns are belt-and-braces so a stray `git add -f`

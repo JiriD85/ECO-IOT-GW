@@ -171,6 +171,8 @@ app.include_router(network.router, tags=["Network"])
 app.include_router(sms.router, prefix="/api/sms", tags=["SMS Alerts"])
 app.include_router(branding.router, prefix="/api/branding", tags=["Branding"])
 app.include_router(meters.router, prefix="/api/meters", tags=["Meters"])
+from .api import modbus
+app.include_router(modbus.router, prefix="/api/modbus", tags=["Modbus configuration"])
 
 
 # Health check endpoint

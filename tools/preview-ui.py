@@ -48,6 +48,34 @@ meters_service.get_latest = sample
 tailscale_identity.identity_for_request = lambda request: 'preview@example.invalid'
 app.include_router(router, prefix='/api/meters')
 
+# Editable Modbus sandbox: files are isolated in a temporary directory, never
+# the kit configuration. Uses the same validation/API as the deployed backend.
+import tempfile
+import json
+from app.api import modbus
+from app.services.modbus_config import ModbusConfig, PROFILES
+_modbus_preview = tempfile.TemporaryDirectory(prefix='eco-modbus-preview-')
+_modbus_dir = Path(_modbus_preview.name)
+_preview_slaves = []
+for i in range(1, 5):
+    for group in PROFILES['pflow']:
+        _preview_slaves.append({'type':'serial','method':'rtu','port':'/dev/meterbus','baudrate':9600,
+            'bytesize':8,'stopbits':1,'parity':'N','timeout':2,'unitId':87+i,'deviceName':f'Preview-PF{i}',
+            'deviceType':'P-Flow D116 GW','pollPeriod':60000,**group})
+for slot in range(2):
+    for group in PROFILES['pt1000'][slot]:
+        _preview_slaves.append({**_preview_slaves[0],**group,'deviceName':f'Preview-TS{slot+1}',
+            'deviceType':'Temperature Sensor GW','unitId':255})
+_modbus_config = {'master':{'slaves':_preview_slaves}}
+(_modbus_dir/'tb_gateway.json').write_text(json.dumps({'connectors':[{'name':'RS485','type':'eco_modbus','configuration':'modbus.json'}]}))
+(_modbus_dir/'modbus.json').write_text(json.dumps(_modbus_config))
+import hashlib
+_key = hashlib.sha256(b'modbus.json').hexdigest()[:16]
+(_modbus_dir/('.eco-cloud-'+_key+'.json')).write_text(json.dumps(_modbus_config))
+modbus.ModbusConfig = lambda directory: ModbusConfig(_modbus_dir, _modbus_dir)
+modbus.log_audit = lambda *args, **kwargs: None
+app.include_router(modbus.router, prefix='/api/modbus')
+
 
 @app.get('/api/auth/whoami')
 def whoami():

@@ -241,6 +241,8 @@ def observer(monkeypatch):
     monkeypatch.setitem(sys.modules, module.__name__, module)
     spec = importlib.util.spec_from_file_location('live_observer_test', ROOT / 'gateway/extensions/eco_modbus/live_modbus.py')
     loaded = importlib.util.module_from_spec(spec); spec.loader.exec_module(loaded)
+    # This fixture isolates the read-boundary observer; cloud guard has separate tests.
+    monkeypatch.setattr(loaded, 'install_configuration_guard', lambda: None)
     return loaded.EcoModbusConnector
 
 
@@ -248,7 +250,9 @@ def observer(monkeypatch):
 async def test_observer_decodes_before_cloud_and_retains_failures(tmp_path, monkeypatch):
     cls = observer(monkeypatch)
     monkeypatch.setenv('ECO_LIVE_DIR', str(tmp_path))
-    obj = cls(None, {'name': 'test'}, 'eco_modbus')
+    (tmp_path / 'tb_gateway.json').write_text('{"connectors":[]}')
+    obj = cls(types.SimpleNamespace(get_config_path=lambda: str(tmp_path)), {'name': 'test'}, 'eco_modbus')
+    (tmp_path / 'tb_gateway.json').unlink()
     cfg = types.SimpleNamespace(device_type='P-Flow', telemetry=[{'tag': 'flow'}], attributes=[], byte_order='BIG', word_order='LITTLE')
     response = types.SimpleNamespace(isError=lambda: False)
     device = types.SimpleNamespace(device_name='PF1', unit_id=1, poll_period=5, uplink_converter_config=cfg, uplink_converter=types.SimpleNamespace(decode_data=lambda *args: 0), result={'telemetry': {'flow': response}})

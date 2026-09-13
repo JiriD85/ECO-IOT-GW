@@ -129,6 +129,12 @@ def install(prepare_file, observer_file, root=Path('/')):
             request('POST', '/containers/tb-gateway/rename?name=' + old_name)
             renamed = True
             shutil.copytree(staged, config_dir, dirs_exist_ok=True)
+            # The gateway writes accepted cloud updates and sidecar baselines.
+            # copytree preserves modes but not ownership of newly staged files.
+            os.chown(config_dir, uid, gid)
+            for item in config_dir.rglob('*'):
+                if not item.is_symlink():
+                    os.chown(item, uid, gid)
             request('POST', '/containers/create?name=tb-gateway', payload)
             created = True
             request('POST', '/containers/tb-gateway/start')

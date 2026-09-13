@@ -47,6 +47,10 @@ def prepare(config_dir, extensions_dir, source=None):
         shutil.copyfile(target, backup)
     for connector in connectors:
         connector.update(type='eco_modbus', **{'class': 'EcoModbusConnector'})
+    # First synchronization must publish the prepared config BEFORE accepting any
+    # old shared attributes. Subsequent upgrades preserve cloud ownership.
+    if not (config_dir / '.eco-sync.json').exists():
+        config.setdefault('thingsboard', {})['remoteConfiguration'] = False
     target.write_text(json.dumps(config, indent=2) + '\n')
     destination = extensions_dir / 'eco_modbus'
     destination.mkdir(parents=True, exist_ok=True)

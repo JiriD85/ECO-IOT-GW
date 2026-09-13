@@ -29,6 +29,7 @@ const cfgLib = require('./lib/config');
 const ssh = require('./lib/ssh');
 const { TB } = require('./lib/tb');
 const release = require('./lib/release');
+const connectorSync = require('./lib/connector-sync');
 const RELEASE_FILE = path.join(__dirname, 'cache', 'webconsole-release.json');
 
 // ---------- constants ----------
@@ -862,18 +863,19 @@ const PHASES = [
 
   // ---------------- 8. Build config ----------------
   {
-    id: 'config', title: 'Laptop — build gateway config (present units)',
-    async detect() { return { done: false, detail: 'always regenerate from the live scan' }; },
+    id: 'config', title: 'Laptop — build gateway config (configured devices)',
+    async detect() { return { done: false, detail: 'regenerate the intended site inventory' }; },
     async run(ctx) {
       const site = path.join(PROV, 'sites', `${ctx.kit}.json`);
       if (!fs.existsSync(site)) throw new Error(`site file missing: ${site}`);
-      const present = (ctx.store.presentUnits || [88]).join(',');
-      step(`generating tb_gateway.json + modbus.json (units ${present}, DEBUG)…`);
+      step('generating tb_gateway.json + modbus.json for all configured devices…');
       const env = { ...process.env, ECO_MODBUS_PORT: '/dev/meterbus', MSYS_NO_PATHCONV: '1' };
-      await new Promise(res => {
-        const p = spawn('node', ['build-gw-config.js', ctx.kit, site, present], { cwd: __dirname, shell: true, env, stdio: ['ignore', 'pipe', 'pipe'] });
-        p.stdout.on('data', dimw); p.stderr.on('data', dimw); p.on('close', res);
+      const built = await new Promise(res => {
+        const p = spawn('node', ['build-gw-config.js', ctx.kit, site], { cwd: __dirname, shell: true, env, stdio: ['ignore', 'pipe', 'pipe'] });
+        p.stdout.on('data', dimw); p.stderr.on('data', dimw); p.on('close', code => res(code));
+        p.on('error', () => res(1));
       });
+      if (built !== 0) throw new Error('Gateway config generation failed');
       const cfgDir = path.join(OUT, ctx.kit, 'config');
       if (!fs.existsSync(path.join(cfgDir, 'tb_gateway.json'))) throw new Error('build-gw-config produced no output');
       ok('gateway config built');
@@ -929,6 +931,56 @@ const PHASES = [
       if (r.code !== 0) throw new Error('Observer upgrade failed; inspect rollback output before continuing');
       const marked = await stream(ctx, asRoot(ctx, `printf '%s' ${shq(release.sourceRevision(REPO))} > /opt/eco/tb-gateway/.live-release`));
       if (marked.code !== 0) throw new Error('Could not record observer release');
+    },
+  },
+
+  {
+    id: 'connector-sync', fatal: true, title: 'ThingsBoard — synchronize installed connectors',
+    async detect(ctx) {
+      const id = ctx.store.gw?.id;
+      if (!id) throw new Error('Gateway device identity is missing');
+      const r = sh(ctx, asRoot(ctx, 'cat /opt/eco/tb-gateway/config/.eco-sync.json 2>/dev/null'));
+      let marker; try { marker = JSON.parse(r.stdout); } catch (_) {}
+      return {done: marker?.deviceId === id && marker?.version === 1, detail: marker?.deviceId === id ? 'initial cloud synchronization already verified; preserving later cloud/local edits' : 'initial synchronization not yet verified'};
+    },
+    async run(ctx) {
+      const id = ctx.store.gw?.id;
+      if (!id) throw new Error('Gateway device identity is missing');
+      const tb = new TB(ctx.cfg, {apply:true});
+      await tb.login();
+      await putMany(ctx, [{local:path.join(BOXDIR,'connector-sync.py'),remote:'/tmp/connector-sync.py'}], 'uploading configuration synchronizer…');
+      const captured = sh(ctx, asRoot(ctx, 'python3 /tmp/connector-sync.py export'));
+      if (captured.code !== 0) throw new Error('Could not read installed connector configuration');
+      // Contains MQTT credentials: never send this through stream()/dimw().
+      const snapshot = JSON.parse(captured.stdout);
+      if (!connectorSync.credentialsMatch(snapshot.gateway.thingsboard.security, await tb.deviceCredentials(id))) {
+        throw new Error('Installed MQTT credentials do not match the selected ThingsBoard gateway. Reconcile the kit identity before synchronizing.');
+      }
+      const desired = connectorSync.payload(snapshot);
+      const attrPath = `/api/plugins/telemetry/DEVICE/${id}/values/attributes/`;
+      const previous = await tb.get(attrPath + 'SHARED_SCOPE');
+      fs.mkdirSync(OUT,{recursive:true});
+      fs.writeFileSync(path.join(OUT,`${ctx.kit}.connector-sync-backup-${Date.now()}.json`),JSON.stringify(previous,null,2),{mode:0o600});
+      await tb.postSharedAttributes(id,desired);
+      const since = Date.now();
+      try {
+        const enabled = await stream(ctx,asRoot(ctx,'python3 /tmp/connector-sync.py enable && docker restart tb-gateway'));
+        if (enabled.code !== 0) throw new Error('Could not enable gateway remote configuration');
+        let matched = false;
+        for (let i=0;i<36;i++) {
+          if (connectorSync.acknowledged(desired,await tb.get(attrPath+'CLIENT_SCOPE'),since)) {matched=true;break;}
+          if (i%6===0) info('waiting for matching gateway configuration acknowledgement…');
+          await sleep(5000);
+        }
+        if (!matched) throw new Error('Gateway did not acknowledge matching configuration within 180 seconds');
+        const marked = await stream(ctx,asRoot(ctx,'python3 /tmp/connector-sync.py complete '+shq(id)));
+        if (marked.code !== 0) throw new Error('Could not record completed synchronization');
+        ok('Installed configuration and ThingsBoard report match');
+      } catch (error) {
+        const paused = await stream(ctx,asRoot(ctx,'python3 /tmp/connector-sync.py disable && docker restart tb-gateway'));
+        if(paused.code !== 0) warn('Could not disable remote configuration after sync failure; inspect the gateway before continuing');
+        throw error;
+      }
     },
   },
 

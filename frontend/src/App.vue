@@ -12,7 +12,7 @@
         <span class="nav-caption">MANAGEMENT</span>
         <RouterLink to="/system"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16M8 3v6m8 0v6m-6 0v6" /></svg> System</RouterLink>
         <RouterLink to="/monitoring"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v18h18M7 16v-4m5 4V7m5 9v-6" /></svg> Monitoring</RouterLink>
-        <details :open="['Docker','Terminal','Connector'].includes(route.name)"><summary>Advanced tools</summary><RouterLink to="/connector">Connector details</RouterLink><RouterLink to="/docker">Containers</RouterLink><RouterLink to="/terminal">Terminal</RouterLink></details>
+        <details :open="['Docker','Terminal','Connector'].includes(route.name)"><summary>Advanced tools</summary><RouterLink to="/connector">Modbus configuration</RouterLink><RouterLink to="/docker">Containers</RouterLink><RouterLink to="/terminal">Terminal</RouterLink></details>
       </nav>
       <footer class="sidebar-footer"><span class="identity">{{ auth.identity || 'Signed in' }}</span><small>{{ auth.authMethod === 'tailscale' ? 'Tailscale session' : 'Local session' }}</small><div class="footer-actions"><button @click="toggleTheme" :aria-label="isDark() ? 'Use light theme' : 'Use dark theme'">{{ isDark() ? 'Light' : 'Dark' }} theme</button><button v-if="auth.authMethod === 'password'" @click="logout">Sign out</button></div></footer>
     </aside>
