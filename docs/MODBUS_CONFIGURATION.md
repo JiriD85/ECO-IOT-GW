@@ -87,7 +87,8 @@ Tailscale authentication, matching ThingsBoard connector acknowledgement, a fres
 local Modbus WebSocket delta and continued ThingsBoard PFlow telemetry using the
 kit's existing gateway image and device mappings. One PFlow responded; the two
 AIOX temperature inputs reported fault codes 129 and 1. The legacy configuration
-also exposes both raw CHC and canonical PFlow fields, producing duplicate dashboard
-readings and a generic device heading. This presentation issue remains unresolved.
+also exposes both raw CHC and canonical PFlow fields. The dashboard now recognizes
+fleet `_PF1` through `_PF4` names and hides a legacy field when its canonical
+equivalent is present, without changing values or ThingsBoard mappings.
 Physical unplug/reconnect recovery and simultaneous operation of all four PFlows
 still require hardware acceptance testing.
