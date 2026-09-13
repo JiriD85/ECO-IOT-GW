@@ -102,3 +102,8 @@
 .reading-label{display:flex;align-items:center;gap:4px}.reading-icon{width:14px;height:14px;flex:none;color:var(--reading-color)}
 [data-tone=velocity]{--reading-color:#4d7c0f}[data-tone=negative]{--reading-color:#a21caf}[data-tone=net]{--reading-color:#4338ca}[data-tone=heating]{--reading-color:#b91c1c}[data-tone=cooling]{--reading-color:#0e7490}[data-tone=heating-exp]{--reading-color:#92400e}[data-tone=cooling-exp]{--reading-color:#475569}
 :root[data-theme=dark] [data-tone=velocity]{--reading-color:#a3e635}:root[data-theme=dark] [data-tone=negative]{--reading-color:#e879f9}:root[data-theme=dark] [data-tone=net]{--reading-color:#a5b4fc}:root[data-theme=dark] [data-tone=heating]{--reading-color:#f87171}:root[data-theme=dark] [data-tone=cooling]{--reading-color:#22d3ee}:root[data-theme=dark] [data-tone=heating-exp]{--reading-color:#fbbf24}:root[data-theme=dark] [data-tone=cooling-exp]{--reading-color:#94a3b8}
+/* Separate primary readings into quiet, clearly bounded tiles. */
+.meter-card:not(.temperature-card) .primary-readings{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.meter-card:not(.temperature-card) .primary-readings>div{grid-column:span 1;border:1px solid var(--border);border-radius:9px;padding:12px;background:var(--bg)}
+.meter-card:not(.temperature-card) .primary-readings>.energy-counter{grid-column:1/-1}
+.meter-card:not(.temperature-card) .primary-readings>.energy-counter .reading-number{font-size:24px}
