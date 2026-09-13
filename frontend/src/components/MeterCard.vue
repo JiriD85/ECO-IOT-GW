@@ -32,8 +32,7 @@ const isCounter = tag => ['V_m3', 'E_th_heating_kWh', 'E_th_cooling_kWh'].includ
 const icon = tag => isCounter(tag) ? 'M3 6h18v12H3z M9 6v12m6-12v12 M6 10v4m6-4v4m6-4v4' : ['T_flow_C', 'T_return_C'].includes(tag) ? 'M9 14V5a3 3 0 0 1 6 0v9a5 5 0 1 1-6 0Z M12 7v11' : 'M3 12h4l3-7 4 14 3-7h4'
 const format = value => typeof value === 'number' ? value.toLocaleString(undefined, { maximumFractionDigits: 3 }) : '—'
 const linkLabel = computed(() => props.device.sensor_state === 'fault' && props.device.displayLink === 'disconnected' ? 'Sensor fault' : ({ connected: 'Connected', disconnected: 'No response', pending: 'Unknown' })[props.device.displayLink] || 'Unknown')
-const primaryTags = ['Vdot_m3h', 'T_flow_C', 'T_return_C', 'V_m3', 'E_th_heating_kWh', 'E_th_cooling_kWh']
-const readings = computed(() => displayReadings(props.device).filter(r => !isPflow.value || primaryTags.includes(r.tag)))
+const readings = computed(() => displayReadings(props.device))
 const trendTags = ['Vdot_m3h', 'T_flow_C', 'T_return_C', 'V_m3']
 const showTrend = group => group.some(r => trendTags.includes(r.tag))
 const order = group => ['Vdot_m3h', 'T_flow_C', 'T_return_C', 'V_m3', 'v_ms', 'V_neg_m3', 'V_net_m3', 'E_th_heating_kWh', 'E_th_heating_exp', 'E_th_cooling_kWh', 'E_th_cooling_exp'].indexOf(group[0].tag)
