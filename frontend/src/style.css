@@ -97,3 +97,8 @@
 
 /* Secondary telemetry stays compact beneath the three primary trends. */
 .primary-readings>.compact-reading{border-top:1px solid var(--border);padding-top:12px}.primary-readings>.compact-reading .reading-number{font-size:20px;letter-spacing:-.4px}.temperature-card .primary-readings>.compact-reading{border:0;padding-top:0}
+/* Six tracks give accumulating energy counters twice the width of a reading. */
+.primary-readings{grid-template-columns:repeat(6,minmax(0,1fr))}.primary-readings>div{grid-column:span 2}.primary-readings>.energy-counter{grid-column:span 4}.temperature-card .primary-readings>div{grid-column:1/-1}
+.reading-label{display:flex;align-items:center;gap:4px}.reading-icon{width:14px;height:14px;flex:none;color:var(--reading-color)}
+[data-tone=velocity]{--reading-color:#4d7c0f}[data-tone=negative]{--reading-color:#a21caf}[data-tone=net]{--reading-color:#4338ca}[data-tone=heating]{--reading-color:#b91c1c}[data-tone=cooling]{--reading-color:#0e7490}[data-tone=heating-exp]{--reading-color:#92400e}[data-tone=cooling-exp]{--reading-color:#475569}
+:root[data-theme=dark] [data-tone=velocity]{--reading-color:#a3e635}:root[data-theme=dark] [data-tone=negative]{--reading-color:#e879f9}:root[data-theme=dark] [data-tone=net]{--reading-color:#a5b4fc}:root[data-theme=dark] [data-tone=heating]{--reading-color:#f87171}:root[data-theme=dark] [data-tone=cooling]{--reading-color:#22d3ee}:root[data-theme=dark] [data-tone=heating-exp]{--reading-color:#fbbf24}:root[data-theme=dark] [data-tone=cooling-exp]{--reading-color:#94a3b8}
