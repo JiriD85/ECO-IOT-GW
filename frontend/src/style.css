@@ -64,7 +64,7 @@
 .temperature-card .reading-stale>.error-text{grid-column:1/-1}
 @media(max-width:420px){.temperature-card .reading-number small{display:inline}}
 
-.meter-grid{align-items:start}.meter-footer{flex-direction:row;flex-wrap:wrap;gap:6px;justify-content:space-between}.temperature-card .meter-footer{padding:5px 18px}.temperature-card .meter-heading{padding-bottom:0}
+.meter-grid{grid-template-columns:repeat(auto-fit,minmax(min(330px,100%),1fr));align-items:start}.meter-footer{flex-direction:row;flex-wrap:wrap;gap:6px;justify-content:space-between}.temperature-card .meter-footer{padding:5px 18px}.temperature-card .meter-heading{padding-bottom:0}
 
 /* Measurement colors remain consistent across cards and their local trends. */
 [data-tone=flow]{--reading-color:#0369a1}[data-tone=temperature]{--reading-color:#c2410c}[data-tone=return]{--reading-color:#0f766e}[data-tone=volume]{--reading-color:#7c3aed}[data-tone=energy]{--reading-color:#a16207}
@@ -97,18 +97,15 @@
 
 /* Secondary telemetry stays compact beneath the three primary trends. */
 .primary-readings>.compact-reading{border-top:1px solid var(--border);padding-top:12px}.primary-readings>.compact-reading .reading-number{font-size:20px;letter-spacing:-.4px}.temperature-card .primary-readings>.compact-reading{border:0;padding-top:0}
-/* Six tracks give accumulating energy counters twice the width of a reading. */
-.primary-readings{grid-template-columns:repeat(6,minmax(0,1fr))}.primary-readings>div{grid-column:span 2}.primary-readings>.energy-counter{grid-column:span 4}.temperature-card .primary-readings>div{grid-column:1/-1}
+.temperature-card .primary-readings>div{grid-column:1/-1}
 .reading-label{display:flex;align-items:center;gap:4px}.reading-icon{width:14px;height:14px;flex:none;color:var(--reading-color)}
 [data-tone=velocity]{--reading-color:#4d7c0f}[data-tone=negative]{--reading-color:#a21caf}[data-tone=net]{--reading-color:#4338ca}[data-tone=heating]{--reading-color:#b91c1c}[data-tone=cooling]{--reading-color:#0e7490}[data-tone=heating-exp]{--reading-color:#92400e}[data-tone=cooling-exp]{--reading-color:#475569}
 :root[data-theme=dark] [data-tone=velocity]{--reading-color:#a3e635}:root[data-theme=dark] [data-tone=negative]{--reading-color:#e879f9}:root[data-theme=dark] [data-tone=net]{--reading-color:#a5b4fc}:root[data-theme=dark] [data-tone=heating]{--reading-color:#f87171}:root[data-theme=dark] [data-tone=cooling]{--reading-color:#22d3ee}:root[data-theme=dark] [data-tone=heating-exp]{--reading-color:#fbbf24}:root[data-theme=dark] [data-tone=cooling-exp]{--reading-color:#94a3b8}
 /* Separate primary readings into quiet, clearly bounded tiles. */
 .meter-card:not(.temperature-card) .primary-readings{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
 .meter-card:not(.temperature-card) .primary-readings>div{grid-column:span 1;border:1px solid var(--border);border-radius:9px;padding:12px;background:var(--bg)}
-.meter-card:not(.temperature-card) .primary-readings>.energy-counter{grid-column:1/-1}
-.meter-card:not(.temperature-card) .primary-readings>.energy-counter .reading-number{font-size:24px}
-/* All accumulating values share one chart-free counter panel. */
-.meter-card:not(.temperature-card) .primary-readings>.counter-group{grid-column:1/-1}
-.counter-group .reading-values{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px 12px}
-.counter-group .reading-values>.wide-counter{grid-column:1/-1}
-.counter-group .reading-values>div+div{border-top:1px solid var(--border);padding-top:10px}
+/* Let each measurement find the smallest useful slot; larger trend tiles fill two. */
+.meter-card:not(.temperature-card) .primary-readings{grid-template-columns:repeat(auto-fit,minmax(135px,1fr));grid-auto-flow:dense;align-items:stretch}
+.meter-card:not(.temperature-card) .primary-readings>div{grid-column:auto;min-height:76px}
+.meter-card:not(.temperature-card) .primary-readings>.has-trend{grid-column:span 2;min-height:126px}
+@media(max-width:430px){.meter-card:not(.temperature-card) .primary-readings{grid-template-columns:repeat(auto-fit,minmax(120px,1fr))}.meter-card:not(.temperature-card) .primary-readings>.has-trend{grid-column:1/-1}}

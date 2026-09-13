@@ -5,8 +5,8 @@
       <h3 v-else-if="device.role === 'temperature'" class="sensor-title" :aria-label="device.label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M9 14V5a3 3 0 0 1 6 0v9a5 5 0 1 1-6 0Z M12 7v10"/><circle cx="12" cy="18" r="1.5" fill="currentColor"/></svg>{{ pflowNumber }}</h3><h3 v-else>{{ device.label }}</h3>
     </div><span class="state-badge" :class="device.displayLink"><i></i>{{ linkLabel }}</span></header>
     <div v-if="readings.length" class="primary-readings">
-      <div v-for="group in groups" :key="group[0].tag" :class="{ 'paired-temperatures': group.length > 1 && !isCounterGroup(group), 'counter-group': isCounterGroup(group), 'reading-stale': group.every(stale), 'compact-reading': !showTrend(group), 'energy-counter': isCounter(group[0].tag) }" :data-tone="tone(group[0].tag)">
-        <div class="reading-values"><div v-for="r in group" :key="r.tag" :data-tone="tone(r.tag)" :class="{ 'reading-stale': stale(r), 'flow-reading': r.tag === 'Vdot_m3h', 'wide-counter': ['V_m3', 'E_th_heating_kWh', 'E_th_cooling_kWh'].includes(r.tag) }"><span v-if="device.role !== 'temperature'" class="reading-label"><svg class="reading-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path :d="icon(r.tag)"/></svg>{{ group.length > 1 && !isCounterGroup(group) ? (r.tag === 'T_flow_C' ? 'Flow' : 'Return') : label(r.tag) }}</span><div class="reading-number" :title="`${format(r.value)} ${r.unit || ''}`">{{ format(r.value) }} <small>{{ r.unit }}</small></div><small v-if="stale(r)" class="error-text">Last known</small></div></div>
+      <div v-for="group in groups" :key="group[0].tag" :class="{ 'paired-temperatures': group.length > 1, 'has-trend': showTrend(group), 'reading-stale': group.every(stale), 'compact-reading': !showTrend(group) }" :data-tone="tone(group[0].tag)">
+        <div class="reading-values"><div v-for="r in group" :key="r.tag" :data-tone="tone(r.tag)" :class="{ 'reading-stale': stale(r), 'flow-reading': r.tag === 'Vdot_m3h' }"><span v-if="device.role !== 'temperature'" class="reading-label"><svg class="reading-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path :d="icon(r.tag)"/></svg>{{ group.length > 1 ? (r.tag === 'T_flow_C' ? 'Flow' : 'Return') : label(r.tag) }}</span><div class="reading-number" :title="`${format(r.value)} ${r.unit || ''}`">{{ format(r.value) }} <small>{{ r.unit }}</small></div><small v-if="stale(r)" class="error-text">Last known</small></div></div>
         <ReadingTrend v-if="showTrend(group)" :points="history[historyKey(device, group[0].tag)] || []" :series="group.length > 1 ? group.map(r => ({ points: history[historyKey(device, r.tag)] || [], tone: tone(r.tag), stale: stale(r) })) : undefined" :unit="group[0].unit" :gap="device.stale_after" />
       </div>
     </div>
@@ -34,17 +34,12 @@ const format = value => typeof value === 'number' ? value.toLocaleString(undefin
 const linkLabel = computed(() => props.device.sensor_state === 'fault' && props.device.displayLink === 'disconnected' ? 'Sensor fault' : ({ connected: 'Connected', disconnected: 'No response', pending: 'Unknown' })[props.device.displayLink] || 'Unknown')
 const readings = computed(() => displayReadings(props.device))
 const trendTags = ['Vdot_m3h', 'T_flow_C', 'T_return_C']
-const isCounterGroup = group => group.some(r => isCounter(r.tag))
 const showTrend = group => group.some(r => trendTags.includes(r.tag))
 const order = group => ['Vdot_m3h', 'T_flow_C', 'T_return_C', 'V_m3', 'v_ms', 'V_neg_m3', 'V_net_m3', 'E_th_heating_kWh', 'E_th_heating_exp', 'E_th_cooling_kWh', 'E_th_cooling_exp'].indexOf(group[0].tag)
 const groups = computed(() => {
   const temperatures = readings.value.filter(r => ['T_flow_C', 'T_return_C'].includes(r.tag))
-  const counters = readings.value.filter(r => isCounter(r.tag) || /^E_th_.*_exp$/.test(r.tag))
-  const other = readings.value.filter(r => !counters.includes(r))
-  const result = other.flatMap(r => temperatures.includes(r) ? (r === temperatures[0] ? [temperatures] : []) : [[r]])
+  return readings.value.flatMap(r => temperatures.includes(r) ? (r === temperatures[0] ? [temperatures] : []) : [[r]])
     .sort((a, b) => Number(showTrend(b)) - Number(showTrend(a)) || order(a) - order(b))
-  if (counters.length) result.push(counters.sort((a, b) => order([a]) - order([b])))
-  return result
 })
 
 const stale = r => props.device.displayLink !== 'connected' || r.stale || (r.last_seen && props.now - Date.parse(r.last_seen) > props.device.stale_after * 1000)
