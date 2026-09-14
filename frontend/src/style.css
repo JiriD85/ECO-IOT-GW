@@ -16,6 +16,7 @@
 .sidebar{background:var(--sidebar)}
 .sidebar nav .router-link-active{background:var(--soft);color:var(--ink)}
 .primary-button{color:#fff}
+.login-card .login-form label{margin:18px 0 8px}.login-card .login-form input{margin-top:0}.password-field{position:relative}.password-field input{padding-right:48px}.password-toggle{position:absolute;right:5px;top:50%;transform:translateY(-50%);width:38px;height:38px;display:grid;place-items:center;border:0;background:transparent;color:var(--muted);border-radius:5px}.password-toggle:hover{color:var(--ink);background:var(--soft)}.password-toggle svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}.login-submit{margin-top:22px}
 .panel,.meter-card,.summary-strip{border-radius:10px}
 :root[data-theme=dark] .brand-logo.company-logo{filter:brightness(0) invert(1)}
 :root[data-theme=dark] .live-button.active{color:#bfdbfe}

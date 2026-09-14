@@ -1221,8 +1221,15 @@ function recordCredentials(ctx, password) {
 async function ensureEcoadminPassword(ctx) {
   const secFile = path.join(OUT, `${ctx.kit}.secrets.json`);
   if (fs.existsSync(secFile)) {
-    info('ecoadmin web-login password already recorded');
-    recordCredentials(ctx);   // refresh the shared ledger anyway
+    let saved;
+    try { saved = JSON.parse(fs.readFileSync(secFile, 'utf8')).webconsole_login.password; } catch (_) {}
+    if (!saved) throw new Error(`Invalid ${ctx.kit}.secrets.json: webconsole_login.password is missing`);
+    // A card reinstall recreates (and may lock) the Linux account while this operator-side
+    // file survives. Reapply the recorded value so the credential ledger remains truthful.
+    const changed = await stream(ctx, asRoot(ctx, `echo 'ecoadmin:${saved}' | chpasswd`));
+    if (changed.code !== 0) throw new Error('Could not restore the recorded ecoadmin password');
+    info('recorded ecoadmin web-login password restored on box');
+    recordCredentials(ctx, saved);   // refresh the shared ledger anyway
     return;
   }
   const existing = sh(ctx, asRoot(ctx, "passwd -S ecoadmin | awk '{print $2}'")).stdout.trim();
