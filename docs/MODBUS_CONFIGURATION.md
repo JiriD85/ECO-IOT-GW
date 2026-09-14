@@ -34,6 +34,14 @@ Changes from ThingsBoard may replace local overrides under the gateway's native
 timestamp rules; newer cloud edits win. Local saves do not write shared attributes.
 The native active-connectors list remains cloud-controlled.
 
+The observer also carries two compatibility fixes for the pinned Gateway and
+Pymodbus versions. Serial reconnects close a stale asyncio transport under the
+shared master lock before reopening `/dev/meterbus`, preventing the connector
+from competing with its own exclusive port handle after an unanswered address.
+Standard integer and floating-point registers use Pymodbus's supported
+`convert_from_registers` API; uncommon manual types retain the Gateway decoder.
+Keep the associated runtime tests when upgrading either dependency.
+
 ThingsBoard's desired connector envelope should retain `type: eco_modbus` and
 `class: EcoModbusConnector`. A stock-modbus cloud edit is normalized locally to
 protect the live view, so its envelope can differ from ThingsBoard's desired

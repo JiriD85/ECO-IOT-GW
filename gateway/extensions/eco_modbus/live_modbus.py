@@ -4,6 +4,7 @@ Never opens a bus or changes polling/report strategy. Atomic snapshots belong on
 tmpfs, shared read-only with the web backend. Observer failure cannot stop polling.
 """
 import hashlib
+import asyncio
 import json
 import logging
 import math
@@ -14,6 +15,79 @@ from pathlib import Path
 from thingsboard_gateway.connectors.modbus.modbus_connector import AsyncModbusConnector
 
 log = logging.getLogger(__name__)
+
+
+def _little_endian(order):
+    value = getattr(order, 'value', order)
+    return str(value).lower() in ('little', '<', 'endian.little')
+
+
+def install_runtime_fixes():
+    """Repair serial reconnects and deprecated decoding in the pinned gateway.
+
+    Pymodbus may mark a serial client disconnected after an unanswered slave while
+    its asyncio transport still owns the exclusive device lock. The upstream
+    connector then immediately opens that same client again. Close and yield the
+    stale transport under the existing per-master lock before reconnecting.
+    """
+    try:
+        from thingsboard_gateway.connectors.modbus.entities.master import Master
+        from thingsboard_gateway.connectors.modbus.bytes_modbus_uplink_converter import BytesModbusUplinkConverter
+        from pymodbus.client.mixin import ModbusClientMixin
+    except ImportError:
+        return
+
+    if not getattr(Master, '_eco_serial_reconnect_installed', False):
+        original_connect = Master.connect
+
+        async def connect(master):
+            if master.client_type != 'serial':
+                return await original_connect(master)
+            async with master.lock:
+                client = master._Master__client
+                if not client.connected:
+                    client.close()
+                    await asyncio.sleep(0)
+                    await client.connect()
+
+        Master.connect = connect
+        Master._eco_serial_reconnect_installed = True
+
+    if not getattr(BytesModbusUplinkConverter, '_eco_modern_decoder_installed', False):
+        original_decode = BytesModbusUplinkConverter.decode_data
+        data_types = ModbusClientMixin.DATATYPE
+
+        def decode_data(converter, encoded, config, byte_order, word_order):
+            if config.get('functionCode') not in (3, 4) or not hasattr(encoded, 'registers'):
+                return original_decode(converter, encoded, config, byte_order, word_order)
+            kind = str(config.get('type', '')).lower()
+            count = int(config.get('objectsCount', config.get('registersCount', config.get('registerCount', 1))))
+            aliases = {'int': f'INT{count * 16}', 'long': f'INT{count * 16}',
+                       'integer': f'INT{count * 16}', 'uint': f'UINT{count * 16}',
+                       'float': f'FLOAT{count * 16}', 'double': f'FLOAT{count * 16}'}
+            type_name = aliases.get(kind, {
+                '16int': 'INT16', '16uint': 'UINT16', '32int': 'INT32',
+                '32uint': 'UINT32', '32float': 'FLOAT32', '64int': 'INT64',
+                '64uint': 'UINT64', '64float': 'FLOAT64'
+            }.get(kind))
+            if not type_name or not hasattr(data_types, type_name):
+                return original_decode(converter, encoded, config, byte_order, word_order)
+            registers = list(encoded.registers)
+            if _little_endian(byte_order):
+                registers = [((word & 0xff) << 8) | ((word >> 8) & 0xff) for word in registers]
+            decoded = ModbusClientMixin.convert_from_registers(
+                registers, getattr(data_types, type_name),
+                word_order='little' if _little_endian(word_order) else 'big')
+            if isinstance(decoded, float):
+                decoded = float(round(decoded, config.get('round', 6)))
+            if config.get('divider'):
+                decoded = float(decoded) / float(config['divider'])
+            elif config.get('multiplier'):
+                decoded *= config['multiplier']
+            return decoded
+
+        BytesModbusUplinkConverter.decode_data = decode_data
+        BytesModbusUplinkConverter._eco_modern_decoder_installed = True
 
 
 def _atomic_config(path, data):
@@ -75,6 +149,7 @@ def install_configuration_guard():
 class EcoModbusConnector(AsyncModbusConnector):
     def __init__(self, gateway, config, connector_type):
         install_configuration_guard()
+        install_runtime_fixes()
         self._live_dir = Path(os.environ.get('ECO_LIVE_DIR', '/run/eco-telemetry'))
         self._live_groups = {}
         self._live_warning_at = 0

@@ -247,6 +247,67 @@ def observer(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_runtime_fixes_close_stale_serial_and_use_modern_decoder(monkeypatch):
+    cls = observer(monkeypatch)
+    loaded = sys.modules.get(cls.__module__)
+    if loaded is None:
+        spec = importlib.util.spec_from_file_location('live_runtime_test', ROOT / 'gateway/extensions/eco_modbus/live_modbus.py')
+        loaded = importlib.util.module_from_spec(spec); spec.loader.exec_module(loaded)
+
+    master_module = types.ModuleType('thingsboard_gateway.connectors.modbus.entities.master')
+    converter_module = types.ModuleType('thingsboard_gateway.connectors.modbus.bytes_modbus_uplink_converter')
+    mixin_module = types.ModuleType('pymodbus.client.mixin')
+
+    class Master:
+        async def connect(self):
+            self.original_called = True
+
+    class Converter:
+        def decode_data(self, *_):
+            return 'legacy'
+
+    class DataTypes:
+        INT16 = object(); UINT16 = object(); INT32 = object(); UINT32 = object()
+        FLOAT32 = object(); INT64 = object(); UINT64 = object(); FLOAT64 = object()
+
+    class Mixin:
+        DATATYPE = DataTypes
+        calls = []
+
+        @classmethod
+        def convert_from_registers(cls, registers, data_type, word_order='big'):
+            cls.calls.append((registers, data_type, word_order))
+            return 12.345678
+
+    master_module.Master = Master
+    converter_module.BytesModbusUplinkConverter = Converter
+    mixin_module.ModbusClientMixin = Mixin
+    monkeypatch.setitem(sys.modules, master_module.__name__, master_module)
+    monkeypatch.setitem(sys.modules, converter_module.__name__, converter_module)
+    monkeypatch.setitem(sys.modules, mixin_module.__name__, mixin_module)
+
+    loaded.install_runtime_fixes()
+    events = []
+
+    class Client:
+        connected = False
+        def close(self): events.append('close')
+        async def connect(self): events.append('connect'); self.connected = True
+
+    master = Master(); master.client_type = 'serial'; master.lock = asyncio.Lock()
+    master._Master__client = Client()
+    await master.connect()
+    assert events == ['close', 'connect']
+
+    encoded = types.SimpleNamespace(registers=[0x1234, 0x5678])
+    decoded = Converter().decode_data(encoded, {'functionCode': 3, 'type': '32float', 'objectsCount': 2,
+                                                'round': 3, 'divider': 2}, 'LITTLE', 'LITTLE')
+    assert decoded == 6.173
+    assert Mixin.calls == [([0x3412, 0x7856], DataTypes.FLOAT32, 'little')]
+    assert Converter().decode_data(encoded, {'functionCode': 3, 'type': 'string'}, 'BIG', 'BIG') == 'legacy'
+
+
+@pytest.mark.asyncio
 async def test_observer_decodes_before_cloud_and_retains_failures(tmp_path, monkeypatch):
     cls = observer(monkeypatch)
     monkeypatch.setenv('ECO_LIVE_DIR', str(tmp_path))
