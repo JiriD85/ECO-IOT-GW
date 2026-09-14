@@ -47,7 +47,7 @@
  .reading-number small{display:block;font-size:12px}
 }
 
-.pflow-title{display:flex;align-items:center;gap:12px;height:38px}.pflow-logo{width:96px;height:35px;color:#0077b9;flex-shrink:0}.pflow-number{font-size:23px;font-weight:650;color:var(--ink);border-left:1px solid var(--border);padding-left:12px}.meter-identity{flex:1}.meter-identity>.muted{display:block;margin-top:5px}:root[data-theme=dark] .pflow-logo{color:#fafafa}@media(max-width:420px){.meter-heading .state-badge{margin-left:auto}}
+.pflow-title{display:flex;align-items:center;gap:12px;height:38px}.pflow-logo{width:96px;height:35px;color:#0077b9;flex-shrink:0}.pflow-number{font-size:23px;font-weight:650;color:var(--ink);border-left:1px solid var(--border);padding-left:12px}.meter-identity{display:flex;align-items:center;gap:10px;flex:1}.meter-identity>.muted{display:block;margin-top:5px}.modbus-address{flex:none;color:var(--muted);background:var(--bg);border:1px solid var(--border);border-radius:5px;padding:4px 6px;font-size:10px;font-weight:650;font-variant-numeric:tabular-nums;white-space:nowrap}:root[data-theme=dark] .pflow-logo{color:#fafafa}@media(max-width:420px){.meter-heading .state-badge{margin-left:auto}.meter-identity{gap:7px}.modbus-address{padding:3px 5px}}
 
 /* Six-device dashboard: measurements first, browser-only trends. */
 .pflow-logo{color:var(--ink)}
@@ -55,7 +55,8 @@
 .primary-readings{grid-template-columns:repeat(3,minmax(0,1fr));row-gap:18px}
 .primary-readings>div+div{border:0;padding-left:0}
 .reading-trend{display:block;width:100%;height:32px;margin-top:6px;color:var(--muted)}
-.temperature-card .meter-heading{padding:14px 18px 4px}
+.temperature-card .meter-heading{display:grid;grid-template-columns:1fr;padding:14px 18px 4px;gap:6px}
+.temperature-card .state-badge{justify-self:start;margin-left:0}
 .temperature-card h3{font-size:14px}
 .temperature-card .primary-readings{padding:0 18px 10px}
 .temperature-card .primary-readings>div{display:grid;grid-template-columns:auto minmax(60px,1fr);align-items:center;gap:18px}

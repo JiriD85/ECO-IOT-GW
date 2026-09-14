@@ -3,6 +3,7 @@
     <header class="meter-heading"><div class="meter-identity">
       <h3 v-if="isPflow" class="pflow-title" :aria-label="`PFlow ${pflowNumber}`"><img class="pflow-logo" :src="pflowLogo" alt="" aria-hidden="true" /><span class="pflow-number">{{ pflowNumber }}</span></h3>
       <h3 v-else-if="device.role === 'temperature'" class="sensor-title" :aria-label="device.label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M9 14V5a3 3 0 0 1 6 0v9a5 5 0 1 1-6 0Z M12 7v10"/><circle cx="12" cy="18" r="1.5" fill="currentColor"/></svg>{{ pflowNumber }}</h3><h3 v-else>{{ device.label }}</h3>
+      <span v-if="device.address != null" class="modbus-address" :title="`Modbus address ${device.address}`" :aria-label="`Modbus address ${device.address}`">Addr {{ device.address }}</span>
     </div><span class="state-badge" :class="device.displayLink"><i></i>{{ linkLabel }}</span></header>
     <div v-if="readings.length" class="primary-readings">
       <div v-for="group in groups" :key="group[0].tag" :class="{ 'paired-temperatures': group.length > 1, 'has-trend': showTrend(group), 'reading-stale': group.every(stale), 'compact-reading': !showTrend(group) }" :data-tone="tone(group[0].tag)">
