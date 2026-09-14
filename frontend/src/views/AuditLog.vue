@@ -223,6 +223,7 @@ onMounted(() => {
 <style scoped>
 .details-content {
   background: #1E1E1E;
+  color: #F4F4F5;
   padding: 16px;
   border-radius: 4px;
   overflow-x: auto;
