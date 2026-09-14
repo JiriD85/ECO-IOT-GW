@@ -29,7 +29,10 @@ function payload(snapshot, timestamp=Date.now()) {
 }
 function acknowledged(desired, attributes, since) {
   const attrs = Object.fromEntries(attributes.map(a => [a.key,a]));
-  if (!equal(attrs.active_connectors?.value, desired.active_connectors) || attrs.active_connectors.lastUpdateTs < since) return false;
+  // The gateway reports active_connectors only when the list changes, so its timestamp
+  // may legitimately predate a connector-content synchronization. Equality is enough;
+  // the general configuration and every connector payload below must still be fresh.
+  if (!equal(attrs.active_connectors?.value, desired.active_connectors)) return false;
   if (!attrs.general_configuration?.value?.remoteConfiguration || attrs.general_configuration.lastUpdateTs < since) return false;
   return desired.active_connectors.every(name => {
     const a = attrs[name], want=desired[name];

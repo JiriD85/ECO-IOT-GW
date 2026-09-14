@@ -164,6 +164,21 @@ def test_installer_preserves_container_runtime():
     assert len(old['HostConfig']['Binds']) == 2
 
 
+def test_connector_sync_records_requested_schema_version(tmp_path, monkeypatch):
+    spec = importlib.util.spec_from_file_location('connector_sync', ROOT / 'provisioning/migrate/box/connector-sync.py')
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    module.ROOT = tmp_path
+    monkeypatch.setattr(module.os, 'chown', lambda *_: None, raising=False)
+    (tmp_path / 'tb_gateway.json').write_text(json.dumps({
+        'connectors': [{'name': 'RS485', 'configuration': 'modbus.json'}]
+    }))
+    (tmp_path / 'modbus.json').write_text(json.dumps({'master': {'slaves': []}}))
+    monkeypatch.setattr(sys, 'argv', ['connector-sync.py', 'complete', 'a0195300-90c4-11f1-8f56-1bdafa1b1051', '2'])
+    module.main()
+    assert json.loads((tmp_path / '.eco-sync.json').read_text())['version'] == 2
+
+
 def test_thingsboard_save_preserves_observer_and_hidden_credentials(tmp_path, monkeypatch):
     from app.config import settings
     monkeypatch.setattr(settings, 'DATA_DIR', tmp_path)

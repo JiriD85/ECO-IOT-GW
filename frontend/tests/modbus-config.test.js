@@ -35,6 +35,7 @@ test('initial synchronization requires fresh matching reports and observer',()=>
  const snapshot={gateway:{thingsboard:{host:'example',remoteConfiguration:false},connectors:[{name:'RS485',type:'eco_modbus',class:'EcoModbusConnector',configuration:'modbus.json'}]},files:{'modbus.json':{master:{slaves:buildGroups(form,profiles,false)}}}}
  const desired=payload(snapshot,100)
  const attributes=Object.entries(desired).map(([key,value])=>({key,value:structuredClone(value),lastUpdateTs:101}))
+ attributes.find(a=>a.key==='active_connectors').lastUpdateTs=1
  assert.ok(acknowledged(desired,attributes,100))
  assert.ok(!acknowledged(desired,attributes,102))
  attributes.find(a=>a.key==='RS485').value.configurationJson.master.slaves[0].timeout=35

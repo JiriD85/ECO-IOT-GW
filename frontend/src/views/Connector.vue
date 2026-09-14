@@ -25,7 +25,7 @@
               <strong>{{ d.name }}</strong><v-chip size="small">{{ d.profile }}</v-chip><v-spacer />
               <v-btn size="small" variant="text" :disabled="busy || c.type !== 'eco_modbus'" @click="edit(c, d)">Edit</v-btn>
             </div>
-            <p class="text-medium-emphasis my-2">{{ d.groups[0].host || d.groups[0].port }} · Address {{ d.groups[0].unitId }} · {{ d.groups[0].pollPeriod / 1000 }} s</p>
+            <p class="text-medium-emphasis my-2">{{ d.groups[0].host || d.groups[0].port }} · Address {{ d.groups[0].unitId }} · {{ d.groups[0].pollPeriod / 1000 }} s read · {{ d.groups[0].timeout }} s timeout</p>
             <v-table density="compact" class="registers">
               <thead><tr><th>Telemetry</th><th>Register</th><th>Read</th><th>Type</th><th>Scale</th><th>Words</th></tr></thead>
               <tbody><template v-for="(g, gi) in d.groups" :key="gi"><tr v-for="(t, ti) in [...(g.timeseries || []), ...(g.attributes || [])]" :key="ti">
@@ -49,16 +49,16 @@
             <v-text-field v-if="selected || form.profile !== 'PT1000 / AIOX'" label="Modbus address" type="number" v-model.number="form.address" min="1" max="255" />
             <p v-else>AIOX board · Address 255</p>
             <v-select v-if="!selected && form.profile === 'PT1000 / AIOX'" label="Input" v-model="form.slot" :items="[{title:'TS1 / IO01',value:0},{title:'TS2 / IO02',value:1}]" />
-            <v-text-field label="Measurement interval (s)" type="number" v-model.number="form.seconds" min="1" />
+            <v-text-field label="Read interval (s)" type="number" v-model.number="form.seconds" min="1" max="86400" />
+            <v-text-field label="Response timeout (s)" type="number" v-model.number="form.timeout" min="0.1" max="60" step="0.1" />
           </div>
           <details class="mb-4"><summary>Bus settings</summary><div class="fields mt-4">
             <v-text-field label="Baud rate" type="number" v-model.number="form.baudrate" />
             <v-select label="Parity" v-model="form.parity" :items="['N','E','O']" />
             <v-select label="Data bits" v-model="form.bytesize" :items="[7,8]" />
             <v-select label="Stop bits" v-model="form.stopbits" :items="[1,2]" />
-            <v-text-field label="Response timeout (s)" type="number" v-model.number="form.timeout" />
           </div><p>Serial settings apply to every device on the selected port.</p></details>
-          <template v-if="selected || form.profile === 'Manual'">
+          <div v-if="selected || form.profile === 'Manual'" class="register-editor">
             <section v-for="(g, gi) in form.groups" :key="gi" class="mb-4">
               <div class="fields"><v-select label="Byte order" v-model="g.byteOrder" :items="['BIG','LITTLE']" /><v-select label="Word order" v-model="g.wordOrder" :items="['BIG','LITTLE']" /></div>
               <div v-for="(t, ti) in g.timeseries" :key="ti" class="mapping">
@@ -68,12 +68,12 @@
                 <v-select label="Type" v-model="t.type" :items="['16int','16uint','32int','32uint','32float','64int','64uint','64float','bits','string']" hide-details />
                 <v-text-field label="Count" type="number" v-model.number="t.objectsCount" hide-details />
                 <v-text-field label="Divider" type="number" v-model.number="t.divider" hide-details />
-                <v-btn variant="text" @click="g.timeseries.splice(ti,1)" aria-label="Remove telemetry">×</v-btn>
+                <v-btn class="remove-mapping" color="error" variant="flat" size="large" @click="g.timeseries.splice(ti,1)" aria-label="Remove telemetry">×</v-btn>
               </div>
               <v-btn variant="text" @click="g.timeseries.push({tag:'value',address:0,functionCode:3,type:'16int',objectsCount:1})">Add telemetry</v-btn>
             </section>
             <details><summary>Advanced device JSON</summary><p class="my-2">Preserves custom mappings. Changes here replace the device form.</p><v-textarea v-model="raw" label="Register groups" rows="10" /><v-btn @click="applyRaw">Use JSON</v-btn></details>
-          </template>
+          </div>
         </v-card-text>
         <v-card-actions class="flex-wrap"><v-btn v-if="selected" color="error" :disabled="busy" @click="save(true)">Remove device</v-btn><v-spacer /><v-btn :disabled="busy" @click="dialog=false">Cancel</v-btn><v-btn color="primary" :loading="busy" @click="save(false)">Apply temporarily</v-btn></v-card-actions>
       </v-card>
@@ -97,5 +97,5 @@ async function restore(c){busy.value=true;error.value='';try{await api.post('/ap
 onMounted(load)
 </script>
 <style scoped>
-.devices{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,440px),1fr));gap:16px}.device{min-width:0;border:1px solid rgba(var(--v-theme-on-surface),.15);border-radius:8px;padding:14px}.registers{overflow:auto}.registers td{white-space:nowrap}.fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}.mapping{display:grid;grid-template-columns:2fr repeat(5,minmax(80px,1fr)) 40px;gap:6px;margin-bottom:10px;overflow:auto}summary{cursor:pointer;padding:10px 0}@media(max-width:650px){.mapping{grid-template-columns:repeat(2,minmax(100px,1fr))}}
+.devices{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,440px),1fr));gap:16px}.device{min-width:0;border:1px solid rgba(var(--v-theme-on-surface),.15);border-radius:8px;padding:14px}.registers{overflow:auto}.registers td{white-space:nowrap}.fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}.register-editor{max-width:100%;overflow-x:auto;padding-bottom:8px}.register-editor>section,.register-editor>details{min-width:760px}.mapping{display:grid;grid-template-columns:2fr repeat(5,minmax(82px,1fr)) 48px;align-items:center;gap:6px;margin-bottom:10px}.remove-mapping{min-width:44px!important;font-size:24px!important;font-weight:700;line-height:1}summary{cursor:pointer;padding:10px 0}
 </style>

@@ -9,6 +9,8 @@ added to the Raspberry Pi or browser.
 
 ## Local overrides
 
+The local device editor exposes the read interval and response timeout. Changes apply to every register group for that physical device, so both PFlow byte-order groups remain synchronized.
+
 Saving validates the complete device list, checks the revision read by the
 editor, retains unrelated configuration, backs up the previous file, and writes
 atomically. The gateway's existing file watcher reloads it (normally within 60s),
@@ -60,6 +62,13 @@ the published desired configuration for inspection/retry and retains the backup.
 Subsequent installations skip initial seeding for the same gateway, preserving
 later cloud edits and local overrides. Removing the marker explicitly requests
 reseeding; do not do this casually.
+
+The marker also carries a connector schema version. Version 2 performs a one-time
+migration from the early duplicated raw/canonical mappings to canonical-only
+telemetry and installs the standard inventory: PFlow 1–4 at addresses 88/80/81/82
+and the two onboard temperature inputs. The installer backs up the active connector
+directory before this migration. Once version 2 is acknowledged, later runs again
+preserve cloud and local edits.
 
 New site config builds retain configured devices even when discovery cannot see
 them. Existing deployed inventories are preserved during upgrades; use the editor

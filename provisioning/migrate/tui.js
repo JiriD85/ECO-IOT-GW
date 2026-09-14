@@ -40,6 +40,10 @@ const OUT = path.join(__dirname, 'out');
 const BOXDIR = path.join(__dirname, 'box');
 const BYID_IF = 'if04';                          // meter-bus USB interface
 const PRESENT_PROBE_UNITS = [88, 80, 81, 82];    // PF1..PF4 unit ids to probe
+// Version 2 replaces the early duplicated raw+canonical inventory with the canonical
+// six-device kit definition (PF1..PF4 and TS1..TS2). Bump only for an intentional,
+// one-time migration that should supersede later cloud/local connector edits.
+const CONNECTOR_SYNC_VERSION = 2;
 
 // ---------- ANSI ----------
 const C = { r: '\x1b[0m', b: '\x1b[1m', dim: '\x1b[2m', red: '\x1b[31m', grn: '\x1b[32m', yel: '\x1b[33m', cyn: '\x1b[36m', mag: '\x1b[35m' };
@@ -886,23 +890,26 @@ const PHASES = [
   {
     id: 'deploy', title: 'Box — deploy tb-gateway container',
     async detect(ctx) {
-      const r = sh(ctx, asRoot(ctx, 'docker inspect -f "{{.State.Running}}" tb-gateway 2>/dev/null; grep -o "usernamePassword\\|accessToken" /opt/eco/tb-gateway/config/tb_gateway.json 2>/dev/null | head -1'));
+      const r = sh(ctx, asRoot(ctx, 'docker inspect -f "{{.State.Running}}" tb-gateway 2>/dev/null; grep -o "usernamePassword\\|accessToken" /opt/eco/tb-gateway/config/tb_gateway.json 2>/dev/null | head -1; cat /opt/eco/tb-gateway/config/.eco-sync.json 2>/dev/null'));
       const running = /true/.test(r.stdout);
       // treat as done only if running AND our config is present
       const configured = /usernamePassword|accessToken/.test(r.stdout);
-      return { done: running && configured, detail: running ? (configured ? 'container running with our config' : 'running but config unverified — will redeploy') : 'not deployed' };
+      let marker; try { marker = JSON.parse(r.stdout.slice(r.stdout.indexOf('{'))); } catch (_) {}
+      const current = marker?.version === CONNECTOR_SYNC_VERSION;
+      return { done: running && configured && current, detail: running ? (configured && current ? 'container running with current connector schema' : 'connector schema upgrade required — will redeploy') : 'not deployed' };
     },
     async run(ctx) {
       const cfgDir = path.join(OUT, ctx.kit, 'config');
       const byId = ctx.store.byId || sh(ctx, `ls /dev/serial/by-id/ 2>/dev/null | grep -- '-${BYID_IF}$' | head -1`).stdout.trim().replace(/^/, '/dev/serial/by-id/');
       step('uploading connector config…');
       await stream(ctx, asRoot(ctx, 'mkdir -p /opt/eco/tb-gateway/config /opt/eco/tb-gateway/logs'));
+      await stream(ctx, asRoot(ctx, 'D=/opt/eco/remote-update-backups/connector-$(date +%s); install -d -m 700 "$D"; cp -a /opt/eco/tb-gateway/config/. "$D/" 2>/dev/null || true; echo "connector backup: $D"'));
       // scp needs a writable path; drop in /tmp then move as root
       scp(ctx, path.join(cfgDir, 'tb_gateway.json'), '/tmp/tb_gateway.json');
       scp(ctx, path.join(cfgDir, 'modbus.json'), '/tmp/modbus.json');
       await stream(ctx, asRoot(ctx, 'cp /tmp/tb_gateway.json /tmp/modbus.json /opt/eco/tb-gateway/config/ && touch /opt/eco/tb-gateway/config/.firstlaunch'));
       step('starting container (--network host, by-id → /dev/meterbus)…');
-      const run = `docker rm -f tb-gateway 2>/dev/null; docker run -d --name tb-gateway --restart unless-stopped --network host ` +
+      const run = `docker rm -f tb-gateway 2>/dev/null; rm -f /run/eco-telemetry/*.json; docker run -d --name tb-gateway --restart unless-stopped --network host ` +
         `--device ${byId}:/dev/meterbus ` +
         `-v /opt/eco/tb-gateway/config:/thingsboard_gateway/config -v /opt/eco/tb-gateway/logs:/thingsboard_gateway/logs ` +
         `${ctx.cfg.docker.imageRef}`;
@@ -941,7 +948,7 @@ const PHASES = [
       if (!id) throw new Error('Gateway device identity is missing');
       const r = sh(ctx, asRoot(ctx, 'cat /opt/eco/tb-gateway/config/.eco-sync.json 2>/dev/null'));
       let marker; try { marker = JSON.parse(r.stdout); } catch (_) {}
-      return {done: marker?.deviceId === id && marker?.version === 1, detail: marker?.deviceId === id ? 'initial cloud synchronization already verified; preserving later cloud/local edits' : 'initial synchronization not yet verified'};
+      return {done: marker?.deviceId === id && marker?.version === CONNECTOR_SYNC_VERSION, detail: marker?.deviceId === id ? (marker?.version === CONNECTOR_SYNC_VERSION ? 'current cloud synchronization verified; preserving later cloud/local edits' : `connector schema ${marker?.version || 0} requires upgrade to ${CONNECTOR_SYNC_VERSION}`) : 'initial synchronization not yet verified'};
     },
     async run(ctx) {
       const id = ctx.store.gw?.id;
@@ -973,7 +980,7 @@ const PHASES = [
           await sleep(5000);
         }
         if (!matched) throw new Error('Gateway did not acknowledge matching configuration within 180 seconds');
-        const marked = await stream(ctx,asRoot(ctx,'python3 /tmp/connector-sync.py complete '+shq(id)));
+        const marked = await stream(ctx,asRoot(ctx,'python3 /tmp/connector-sync.py complete '+shq(id)+' '+CONNECTOR_SYNC_VERSION));
         if (marked.code !== 0) throw new Error('Could not record completed synchronization');
         ok('Installed configuration and ThingsBoard report match');
       } catch (error) {

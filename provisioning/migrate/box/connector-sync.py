@@ -25,8 +25,8 @@ def write(path, data):
             os.unlink(tmp)
 
 
-def export(root=ROOT):
-    root = root.resolve()
+def export(root=None):
+    root = (Path(root) if root else ROOT).resolve()
     config = json.loads((root / 'tb_gateway.json').read_text())
     files = {}
     for c in config['connectors']:
@@ -51,6 +51,9 @@ def main():
         device_id = sys.argv[2]
         if len(device_id) != 36 or any(c not in '0123456789abcdef-' for c in device_id):
             raise ValueError('Invalid gateway id')
+        version = int(sys.argv[3])
+        if version < 1:
+            raise ValueError('Invalid synchronization version')
         data = export()
         for filename, config in data['files'].items():
             key = hashlib.sha256(filename.encode()).hexdigest()[:16]
@@ -59,7 +62,7 @@ def main():
             # can be timestamp-skipped when byte-for-byte identical to local files.
             if not baseline.exists():
                 write(baseline, config)
-        write(ROOT / '.eco-sync.json', {'deviceId': device_id, 'version': 1})
+        write(ROOT / '.eco-sync.json', {'deviceId': device_id, 'version': version})
     else:
         raise ValueError('Unknown action')
 
