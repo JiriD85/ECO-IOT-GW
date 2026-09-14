@@ -68,7 +68,7 @@
                 <v-select label="Type" v-model="t.type" :items="['16int','16uint','32int','32uint','32float','64int','64uint','64float','bits','string']" hide-details />
                 <v-text-field label="Count" type="number" v-model.number="t.objectsCount" hide-details />
                 <v-text-field label="Divider" type="number" v-model.number="t.divider" hide-details />
-                <v-btn class="remove-mapping" color="error" variant="flat" size="large" @click="g.timeseries.splice(ti,1)" aria-label="Remove telemetry">×</v-btn>
+                <v-btn class="remove-mapping" color="error" variant="text" size="large" @click="g.timeseries.splice(ti,1)" aria-label="Remove telemetry">×</v-btn>
               </div>
               <v-btn variant="text" @click="g.timeseries.push({tag:'value',address:0,functionCode:3,type:'16int',objectsCount:1})">Add telemetry</v-btn>
             </section>
@@ -97,5 +97,5 @@ async function restore(c){busy.value=true;error.value='';try{await api.post('/ap
 onMounted(load)
 </script>
 <style scoped>
-.devices{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,440px),1fr));gap:16px}.device{min-width:0;border:1px solid rgba(var(--v-theme-on-surface),.15);border-radius:8px;padding:14px}.registers{overflow:auto}.registers td{white-space:nowrap}.fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}.register-editor{max-width:100%;overflow-x:auto;padding-bottom:8px}.register-editor>section,.register-editor>details{min-width:760px}.mapping{display:grid;grid-template-columns:2fr repeat(5,minmax(82px,1fr)) 48px;align-items:center;gap:6px;margin-bottom:10px}.remove-mapping{min-width:44px!important;font-size:24px!important;font-weight:700;line-height:1}summary{cursor:pointer;padding:10px 0}
+.devices{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,440px),1fr));gap:16px}.device{min-width:0;border:1px solid rgba(var(--v-theme-on-surface),.15);border-radius:8px;padding:14px}.registers{overflow:auto}.registers td{white-space:nowrap}.fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}.register-editor{max-width:100%;overflow-x:auto;padding:6px 0 8px}.register-editor>section,.register-editor>details{min-width:760px}.register-editor>section>.fields{margin-bottom:16px}.mapping{display:grid;grid-template-columns:2fr repeat(5,minmax(82px,1fr)) 48px;align-items:center;gap:6px;margin-bottom:18px}.remove-mapping{min-width:44px!important;height:44px!important;font-size:26px!important;font-weight:700;line-height:1}summary{cursor:pointer;padding:10px 0}
 </style>
