@@ -160,6 +160,7 @@ def test_installer_preserves_container_runtime():
         assert result['HostConfig'][key] == old['HostConfig'][key]
     assert set(old['HostConfig']['Binds']).issubset(result['HostConfig']['Binds'])
     assert '/run/eco-telemetry:/run/eco-telemetry' in result['HostConfig']['Binds']
+    assert '/extensions/eco_modbus:/thingsboard_gateway/extensions/modbus:ro' in result['HostConfig']['Binds']
     assert 'original-anonymous-volume:/thingsboard_gateway/extensions' in result['HostConfig']['Binds']
     assert len(old['HostConfig']['Binds']) == 2
 

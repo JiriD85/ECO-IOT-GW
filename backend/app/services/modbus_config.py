@@ -94,7 +94,8 @@ class ModbusConfig:
             old = json.loads(path.read_text())
             if revision(old) != expected:
                 raise FileExistsError('Configuration changed. Reload before saving.')
-            if entry['type'] != 'eco_modbus':
+            if entry['type'] != 'eco_modbus' and not (
+                    entry['type'] == 'modbus' and entry.get('class') == 'AsyncModbusConnector'):
                 raise ValueError('Install the live connector upgrade before editing locally')
             key = hashlib.sha256(entry['configuration'].encode()).hexdigest()[:16]
             if restore:

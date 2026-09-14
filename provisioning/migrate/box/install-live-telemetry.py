@@ -19,6 +19,7 @@ import time
 
 LIVE = '/run/eco-telemetry'
 EXT = '/thingsboard_gateway/extensions/eco_modbus'
+MODBUS_EXT = '/thingsboard_gateway/extensions/modbus'
 
 
 def create_payload(old, extensions):
@@ -35,15 +36,15 @@ def create_payload(old, extensions):
     if host.get('AutoRemove'):
         raise ValueError('Cannot retain rollback container with AutoRemove enabled')
     # Preserve devices, limits, privileges, restart policy and every unrelated bind.
-    host['Binds'] = [b for b in host.get('Binds') or [] if b.split(':')[1] not in (LIVE, EXT)]
-    host['Binds'] += [f'{LIVE}:{LIVE}', f'{extensions}:{EXT}:ro']
+    host['Binds'] = [b for b in host.get('Binds') or [] if b.split(':')[1] not in (LIVE, EXT, MODBUS_EXT)]
+    host['Binds'] += [f'{LIVE}:{LIVE}', f'{extensions}:{EXT}:ro', f'{extensions}:{MODBUS_EXT}:ro']
     bound = {b.split(':')[1] for b in host['Binds']}
     bound.update(m.get('Target') for m in host.get('Mounts') or [])
     for mount in old.get('Mounts', []):
         # Config.Volumes alone would allocate NEW anonymous volumes on recreation.
         if mount['Type'] == 'volume' and mount['Destination'] not in bound:
             host['Binds'].append(f"{mount['Name']}:{mount['Destination']}" + ('' if mount['RW'] else ':ro'))
-    if any(m.get('Target') in (LIVE, EXT) for m in host.get('Mounts') or []):
+    if any(m.get('Target') in (LIVE, EXT, MODBUS_EXT) for m in host.get('Mounts') or []):
         raise ValueError('Conflicting structured mount; manual migration required')
     payload['HostConfig'] = host
     return payload

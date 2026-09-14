@@ -73,6 +73,32 @@ class TB {
     try { return await this.get(`/api/plugins/telemetry/DEVICE/${deviceId}/values/attributes/SHARED_SCOPE`); } catch { return []; }
   }
 
+  // Gateway UI lists downstream devices through Created/COMMON relations.
+  // Only resolve names actually present in active connector configurations.
+  async gatewayRelations(gatewayId, repair = false) {
+    const attrs = await this.get(`/api/plugins/telemetry/DEVICE/${gatewayId}/values/attributes/SHARED_SCOPE`);
+    const values = Object.fromEntries(attrs.map(a => [a.key, a.value]));
+    const names = [...new Set((values.active_connectors || []).flatMap(name =>
+      (values[name]?.configurationJson?.master?.slaves || []).map(s => s.deviceName)))];
+    if (!names.length) throw Error('No configured Modbus device names found');
+    const outgoing = await this.get(`/api/relations?fromId=${gatewayId}&fromType=DEVICE`);
+    const pending = [];
+    for (const name of names) {
+      const device = await this.get(`/api/tenant/devices?deviceName=${encodeURIComponent(name)}`);
+      if (!device?.id?.id || device.id.id === gatewayId) throw Error('Invalid downstream device identity');
+      const incoming = await this.get(`/api/relations?toId=${device.id.id}&toType=DEVICE`);
+      if (incoming.some(r => r.type === 'Created' && r.typeGroup === 'COMMON' && r.from.entityType === 'DEVICE' && r.from.id !== gatewayId)) {
+        throw Error(`Device ${name} is already related to another gateway`);
+      }
+      if (!outgoing.some(r => r.type === 'Created' && r.typeGroup === 'COMMON' && r.to.entityType === 'DEVICE' && r.to.id === device.id.id)) {
+        pending.push({from:{entityType:'DEVICE',id:gatewayId},to:device.id,type:'Created',typeGroup:'COMMON'});
+      }
+    }
+    // Validate every identity and ownership conflict before writing any relation.
+    if (repair) for (const relation of pending) await this._write('POST', '/api/relation', relation, 'link configured device to gateway');
+    return {devices:names.length, missing:pending.length};
+  }
+
   // --- writes (guarded) ---
   async setDeviceProfile(device, profileId, profileName) {
     // TB requires PUT of the full device object with the new deviceProfileId

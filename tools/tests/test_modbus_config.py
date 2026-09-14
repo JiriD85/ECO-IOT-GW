@@ -90,7 +90,8 @@ def test_cloud_guard_preserves_observer_and_caches_only_applied_config(tmp_path,
     incoming={'type':'modbus','name':'RS485','configuration':'modbus.json','configurationJson':{'master':{'slaves':device()}}}
     handler._handle_connector_configuration_update(incoming)
     assert incoming['type']=='modbus'
-    assert handler.received['type']=='eco_modbus' and handler.received['class']=='EcoModbusConnector'
+    assert handler.received['type']=='modbus' and handler.received['class']=='AsyncModbusConnector'
+    assert module.AsyncModbusConnector is module.EcoModbusConnector
     baseline=next(tmp_path.glob('.eco-cloud-*.json'))
     assert json.loads(baseline.read_text())==incoming['configurationJson']
     handler.fail=True

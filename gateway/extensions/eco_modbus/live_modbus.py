@@ -120,7 +120,7 @@ def install_configuration_guard():
             return original(self, incoming)
         from copy import deepcopy
         config = deepcopy(incoming)
-        config.update(type='eco_modbus', **{'class': 'EcoModbusConnector'})
+        config.update(type='modbus', **{'class': 'AsyncModbusConnector'})
         # An omitted filename is resolved the same way as upstream.
         filename = config.get('configuration') or config['name'].replace(' ', '_').lower() + '.json'
         root = Path(self._gateway.get_config_path()).resolve()
@@ -224,3 +224,9 @@ class EcoModbusConnector(AsyncModbusConnector):
             if time.monotonic() - self._live_warning_at > 60:
                 log.warning('Local telemetry observer unavailable', exc_info=True)
                 self._live_warning_at = time.monotonic()
+
+
+# TBModuleLoader searches extensions/modbus before the bundled connector. Export
+# its standard class name so cloud editors can keep type=modbus, even when they
+# omit the optional class field. The implementation still subclasses upstream.
+AsyncModbusConnector = EcoModbusConnector

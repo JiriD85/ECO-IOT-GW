@@ -926,7 +926,7 @@ const PHASES = [
     async detect(ctx) {
       const expected = release.sha(path.join(REPO, 'gateway/extensions/eco_modbus/live_modbus.py'));
       const r = sh(ctx, asRoot(ctx, `docker exec tb-gateway sha256sum /thingsboard_gateway/extensions/eco_modbus/live_modbus.py 2>/dev/null; docker inspect -f '{{range .Mounts}}{{println .Destination}}{{end}}' tb-gateway 2>/dev/null; cat /opt/eco/tb-gateway/.live-release 2>/dev/null`));
-      return { done: r.stdout.includes(expected) && r.stdout.split(/\r?\n/).includes('/run/eco-telemetry') && r.stdout.includes(release.sourceRevision(REPO)), detail: 'observer code, shared memory mount and installer release checked' };
+      return { done: r.stdout.includes(expected) && r.stdout.split(/\r?\n/).includes('/run/eco-telemetry') && r.stdout.split(/\r?\n/).includes('/thingsboard_gateway/extensions/modbus') && r.stdout.includes(release.sourceRevision(REPO)), detail: 'observer code, Modbus extension mount, shared memory and installer release checked' };
     },
     async run(ctx) {
       await putMany(ctx, [
@@ -994,6 +994,24 @@ const PHASES = [
         if(paused.code !== 0) warn('Could not disable remote configuration after sync failure; inspect the gateway before continuing');
         throw error;
       }
+    },
+  },
+
+  {
+    id: 'gateway-relations', fatal: true, title: 'ThingsBoard — link gateway devices',
+    async detect(ctx) {
+      const tb = new TB(ctx.cfg);
+      await tb.login();
+      const result = await tb.gatewayRelations(ctx.store.gw.id);
+      return {done:result.missing === 0,detail:`${result.devices} configured devices, ${result.missing} missing gateway relations`};
+    },
+    async run(ctx) {
+      const tb = new TB(ctx.cfg, {apply:true});
+      await tb.login();
+      await tb.gatewayRelations(ctx.store.gw.id, true);
+      const result = await tb.gatewayRelations(ctx.store.gw.id);
+      if (result.missing) throw Error('Gateway device relations did not persist');
+      ok(`${result.devices} configured devices linked to gateway`);
     },
   },
 

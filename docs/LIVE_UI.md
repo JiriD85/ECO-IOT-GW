@@ -79,11 +79,12 @@ hooks before upgrading the ThingsBoard image.
 2. Prepare a **local copy** of the kit's generated config and extension directory:
    `python tools/prepare-live-telemetry.py <staged-config-dir> <staged-extension-dir>`.
    It preserves `.pre-live` copies, changes Modbus connector registration to
-   `type: eco_modbus`, `class: EcoModbusConnector`, copies the extension and adds
+   `type: modbus`, `class: AsyncModbusConnector`, copies the extension and adds
    the AIOX fault tags. It preserves serial/poll/upload settings. These config
    files can contain credentials: keep them in the existing ignored staging area.
 3. During the separately approved rollout, install the staged extension beneath
-   `/thingsboard_gateway/extensions/eco_modbus/live_modbus.py` in the container,
+   `/thingsboard_gateway/extensions/modbus/live_modbus.py` in the container
+   (also mounted at the legacy `extensions/eco_modbus` path),
    and the staged config beneath `/thingsboard_gateway/config`. These underscore
    paths were verified on the kit; the old root Compose file uses different paths.
 4. Create host `/run/eco-telemetry` with ownership allowing the gateway container

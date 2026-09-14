@@ -10,6 +10,25 @@ test('installer refuses to seed a different gateway identity',()=>{
  assert.ok(credentialsMatch({username:'test',password:'test',clientId:'id'},{credentialsType:'MQTT_BASIC',credentialsValue:JSON.stringify({userName:'test',password:'test',clientId:'id'})}))
 })
 const profiles=require('../../backend/app/services/modbus_profiles.json')
+
+test('gateway relations are idempotent and reject another gateway before writing',async()=>{
+ const {TB}=require('../../provisioning/migrate/lib/tb.js')
+ const tb=new TB({tb:{baseUrl:'example'}},{apply:true}),relations=[]
+ let conflict=false
+ tb.get=async url=>{
+  if(url.includes('SHARED_SCOPE'))return [{key:'active_connectors',value:['bus']},{key:'bus',value:{configurationJson:{master:{slaves:[{deviceName:'PF1'},{deviceName:'PF1'},{deviceName:'TS1'}]}}}}]
+  if(url.includes('tenant/devices'))return {id:{entityType:'DEVICE',id:url.endsWith('PF1')?'pf':'ts'}}
+  if(url.includes('fromId='))return relations
+  return conflict?[{type:'Created',typeGroup:'COMMON',from:{entityType:'DEVICE',id:'other'}}]:[]
+ }
+ tb._write=async(_method,_url,body)=>relations.push(body)
+ assert.deepEqual(await tb.gatewayRelations('gw',true),{devices:2,missing:2})
+ assert.deepEqual(await tb.gatewayRelations('gw',true),{devices:2,missing:0})
+ assert.equal(relations.length,2)
+ relations.length=0;conflict=true
+ await assert.rejects(()=>tb.gatewayRelations('gw',true),/another gateway/)
+ assert.equal(relations.length,0)
+})
 test('local profiles match the provisioning source of register maps',()=>{
  const m=require('../../provisioning/device-maps.js')
  assert.deepEqual(profiles.pflow,m.canonicalizeGroups(m.PFLOW_D116.registerGroups))
@@ -32,7 +51,7 @@ test('editing preserves manual fields and applies shared serial framing',()=>{
  assert.deepEqual(result[1].rpc,[{tag:'keep'}])
 })
 test('initial synchronization requires fresh matching reports and observer',()=>{
- const snapshot={gateway:{thingsboard:{host:'example',remoteConfiguration:false},connectors:[{name:'RS485',type:'eco_modbus',class:'EcoModbusConnector',configuration:'modbus.json'}]},files:{'modbus.json':{master:{slaves:buildGroups(form,profiles,false)}}}}
+ const snapshot={gateway:{thingsboard:{host:'example',remoteConfiguration:false},connectors:[{name:'RS485',type:'modbus',class:'AsyncModbusConnector',configuration:'modbus.json'}]},files:{'modbus.json':{master:{slaves:buildGroups(form,profiles,false)}}}}
  const desired=payload(snapshot,100)
  const attributes=Object.entries(desired).map(([key,value])=>({key,value:structuredClone(value),lastUpdateTs:101}))
   attributes.find(a=>a.key==='active_connectors').lastUpdateTs=1
@@ -43,8 +62,8 @@ test('initial synchronization requires fresh matching reports and observer',()=>
  attributes.find(a=>a.key==='RS485').value.configurationJson.master.slaves[0].timeout=35
  assert.ok(!configured(desired,attributes))
  assert.ok(!acknowledged(desired,attributes,100))
- attributes.find(a=>a.key==='RS485').value.type='modbus'
+ attributes.find(a=>a.key==='RS485').value.type='eco_modbus'
  assert.ok(!cloudConfigured(attributes))
- snapshot.gateway.connectors[0].type='modbus'
+ snapshot.gateway.connectors[0].type='eco_modbus'
  assert.throws(()=>payload(snapshot),/observer/)
 })

@@ -42,11 +42,13 @@ Standard integer and floating-point registers use Pymodbus's supported
 `convert_from_registers` API; uncommon manual types retain the Gateway decoder.
 Keep the associated runtime tests when upgrading either dependency.
 
-ThingsBoard's desired connector envelope should retain `type: eco_modbus` and
-`class: EcoModbusConnector`. A stock-modbus cloud edit is normalized locally to
-protect the live view, so its envelope can differ from ThingsBoard's desired
-envelope even when the device mappings match. The platform's generic/advanced
-connector editor may be needed for the custom type.
+ThingsBoard's connector envelope uses `type: modbus` and the standard class name
+`AsyncModbusConnector`, enabling its Basic/Master Connections editor. The pinned
+gateway loader searches `extensions/modbus` before bundled connectors; that
+directory exports our observer under the standard class name. Cloud edits that
+omit `class` therefore retain local readings and runtime fixes. The legacy
+`extensions/eco_modbus` mount remains available during migration. Do not deploy
+the new registration without the Modbus extension mount.
 
 ## Initial installation
 
@@ -69,11 +71,17 @@ the wizard attempts to disable remote configuration again and stops. It leaves
 the published desired configuration for inspection/retry and retains the backup.
 Subsequent installations with the same gateway marker verify that ThingsBoard
 still has an active, remotely controlled connector configuration and that Modbus
-uses the custom observer. Missing or incomplete cloud configuration is backed up
+uses the native Modbus type. Missing or incomplete cloud configuration is backed up
 and synchronized again. Valid later ThingsBoard edits remain authoritative. The
 initial synchronization still requires an exact, fresh client report before the
 marker is accepted. This ensures that the first run after setting `gateway=true`
 creates the connector attributes instead of merely trusting the device flag.
+
+The following fatal `gateway-relations` phase resolves the device names in active
+Modbus mappings and creates missing gateway → device `Created`/`COMMON` relations.
+It is idempotent, preserves asset `Contains` relations, and refuses devices already
+linked to another gateway. Only configured devices are linked, excluding unused
+legacy kit devices such as TS3. Existing device IDs and telemetry history remain.
 
 The marker also carries a connector schema version. Version 2 performs a one-time
 migration from the early duplicated raw/canonical mappings to canonical-only

@@ -20,7 +20,7 @@ function payload(snapshot, timestamp=Date.now()) {
   for (const c of config.connectors) {
     const data = structuredClone(snapshot.files[c.configuration]);
     if (!data) throw Error('Missing active connector configuration');
-    if (['modbus','eco_modbus'].includes(c.type) && (c.type !== 'eco_modbus' || c.class !== 'EcoModbusConnector')) throw Error('Install the local observer before cloud synchronization');
+    if (['modbus','eco_modbus'].includes(c.type) && (c.type !== 'modbus' || c.class !== 'AsyncModbusConnector')) throw Error('Install the local observer before cloud synchronization');
     const id = data.id || c.id || crypto.randomUUID();
     data.id = id; data.name = c.name;
     out[c.name] = {...c,id,configurationJson:data,logLevel:data.logLevel || 'INFO',enableRemoteLogging:!!data.enableRemoteLogging,configVersion:data.configVersion || '3.7.8',ts:timestamp};
@@ -49,9 +49,9 @@ function cloudConfigured(attributes) {
   return active.every(name => {
     const connector = attrs[name]?.value;
     if (!connector || connector.name !== name || !connector.configurationJson) return false;
-    if (connector.type === 'modbus') return false;
-    if (connector.type !== 'eco_modbus') return true;
-    return connector.class === 'EcoModbusConnector' && Array.isArray(connector.configurationJson.master?.slaves);
+    if (connector.type === 'eco_modbus') return false;
+    if (connector.type !== 'modbus') return true;
+    return Array.isArray(connector.configurationJson.master?.slaves);
   });
 }
 function acknowledged(desired, attributes, since) {

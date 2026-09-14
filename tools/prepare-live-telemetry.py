@@ -46,7 +46,7 @@ def prepare(config_dir, extensions_dir, source=None):
     if not backup.exists():
         shutil.copyfile(target, backup)
     for connector in connectors:
-        connector.update(type='eco_modbus', **{'class': 'EcoModbusConnector'})
+        connector.update(type='modbus', **{'class': 'AsyncModbusConnector'})
     # First synchronization must publish the prepared config BEFORE accepting any
     # old shared attributes. Subsequent upgrades preserve cloud ownership.
     if not (config_dir / '.eco-sync.json').exists():
