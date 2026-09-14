@@ -27,22 +27,41 @@ function payload(snapshot, timestamp=Date.now()) {
   }
   return out;
 }
-function acknowledged(desired, attributes, since) {
+function configured(desired, attributes) {
   const attrs = Object.fromEntries(attributes.map(a => [a.key,a]));
-  // The gateway reports active_connectors only when the list changes, so its timestamp
-  // may legitimately predate a connector-content synchronization. Equality is enough;
-  // the general configuration and every connector payload below must still be fresh.
   if (!equal(attrs.active_connectors?.value, desired.active_connectors)) return false;
-  if (!attrs.general_configuration?.value?.remoteConfiguration || attrs.general_configuration.lastUpdateTs < since) return false;
+  if (!attrs.general_configuration?.value?.remoteConfiguration) return false;
   return desired.active_connectors.every(name => {
     const a = attrs[name], want=desired[name];
-    if (!a || a.lastUpdateTs < since || a.value.type !== want.type || a.value.class !== want.class) return false;
+    if (!a || a.value.type !== want.type || a.value.class !== want.class) return false;
     const actual=a.value.configurationJson;
     if (want.configurationJson.master) return equal(actual?.master,want.configurationJson.master);
     // Non-Modbus connectors may move these root settings into the envelope.
     const omit = v => Object.fromEntries(Object.entries(v || {}).filter(([k])=>!['id','name','logLevel','enableRemoteLogging','configVersion','reportStrategy'].includes(k)));
     return equal(omit(actual),omit(want.configurationJson));
   });
+}
+function cloudConfigured(attributes) {
+  const attrs = Object.fromEntries(attributes.map(a => [a.key,a]));
+  const active = attrs.active_connectors?.value;
+  if (!Array.isArray(active) || !active.length || new Set(active).size !== active.length) return false;
+  if (!attrs.general_configuration?.value?.remoteConfiguration) return false;
+  return active.every(name => {
+    const connector = attrs[name]?.value;
+    if (!connector || connector.name !== name || !connector.configurationJson) return false;
+    if (connector.type === 'modbus') return false;
+    if (connector.type !== 'eco_modbus') return true;
+    return connector.class === 'EcoModbusConnector' && Array.isArray(connector.configurationJson.master?.slaves);
+  });
+}
+function acknowledged(desired, attributes, since) {
+  if (!configured(desired,attributes)) return false;
+  const attrs = Object.fromEntries(attributes.map(a => [a.key,a]));
+  // The gateway reports active_connectors only when the list changes, so its timestamp
+  // may legitimately predate a connector-content synchronization. Equality is enough;
+  // the general configuration and every connector payload below must still be fresh.
+  if (attrs.general_configuration.lastUpdateTs < since) return false;
+  return desired.active_connectors.every(name => attrs[name].lastUpdateTs >= since);
 }
 function credentialsMatch(security, credentials) {
   if(credentials.credentialsType === 'ACCESS_TOKEN') return security?.accessToken === credentials.credentialsId;
@@ -53,4 +72,4 @@ function credentialsMatch(security, credentials) {
   }
   return false;
 }
-module.exports={payload,acknowledged,equal,credentialsMatch};
+module.exports={payload,configured,cloudConfigured,acknowledged,equal,credentialsMatch};

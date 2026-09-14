@@ -948,7 +948,13 @@ const PHASES = [
       if (!id) throw new Error('Gateway device identity is missing');
       const r = sh(ctx, asRoot(ctx, 'cat /opt/eco/tb-gateway/config/.eco-sync.json 2>/dev/null'));
       let marker; try { marker = JSON.parse(r.stdout); } catch (_) {}
-      return {done: marker?.deviceId === id && marker?.version === CONNECTOR_SYNC_VERSION, detail: marker?.deviceId === id ? (marker?.version === CONNECTOR_SYNC_VERSION ? 'current cloud synchronization verified; preserving later cloud/local edits' : `connector schema ${marker?.version || 0} requires upgrade to ${CONNECTOR_SYNC_VERSION}`) : 'initial synchronization not yet verified'};
+      if (marker?.deviceId !== id) return {done:false,detail:'initial synchronization not yet verified'};
+      if (marker?.version !== CONNECTOR_SYNC_VERSION) return {done:false,detail:`connector schema ${marker?.version || 0} requires upgrade to ${CONNECTOR_SYNC_VERSION}`};
+      const tb = new TB(ctx.cfg, {apply:false});
+      await tb.login();
+      const shared = await tb.sharedAttributes(id);
+      const done = connectorSync.cloudConfigured(shared);
+      return {done,detail:done?'ThingsBoard connector configuration is present':'ThingsBoard connector configuration is missing or incomplete'};
     },
     async run(ctx) {
       const id = ctx.store.gw?.id;

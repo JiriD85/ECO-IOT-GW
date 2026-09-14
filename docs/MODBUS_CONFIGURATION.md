@@ -67,9 +67,13 @@ Observer staging disables remote configuration on the first installation, before
 old shared attributes can replace the prepared files. If acknowledgement fails,
 the wizard attempts to disable remote configuration again and stops. It leaves
 the published desired configuration for inspection/retry and retains the backup.
-Subsequent installations skip initial seeding for the same gateway, preserving
-later cloud edits and local overrides. Removing the marker explicitly requests
-reseeding; do not do this casually.
+Subsequent installations with the same gateway marker verify that ThingsBoard
+still has an active, remotely controlled connector configuration and that Modbus
+uses the custom observer. Missing or incomplete cloud configuration is backed up
+and synchronized again. Valid later ThingsBoard edits remain authoritative. The
+initial synchronization still requires an exact, fresh client report before the
+marker is accepted. This ensures that the first run after setting `gateway=true`
+creates the connector attributes instead of merely trusting the device flag.
 
 The marker also carries a connector schema version. Version 2 performs a one-time
 migration from the early duplicated raw/canonical mappings to canonical-only

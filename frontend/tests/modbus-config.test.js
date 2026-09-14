@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import {createRequire} from 'node:module'
 import {groupDevices,buildGroups,replaceDevice} from '../src/services/modbusConfig.js'
 const require=createRequire(import.meta.url)
-const {payload,acknowledged,credentialsMatch}=require('../../provisioning/migrate/lib/connector-sync.js')
+const {payload,configured,cloudConfigured,acknowledged,credentialsMatch}=require('../../provisioning/migrate/lib/connector-sync.js')
 test('installer refuses to seed a different gateway identity',()=>{
  assert.ok(credentialsMatch({accessToken:'test'},{credentialsType:'ACCESS_TOKEN',credentialsId:'test'}))
  assert.ok(!credentialsMatch({accessToken:'wrong'},{credentialsType:'ACCESS_TOKEN',credentialsId:'test'}))
@@ -35,11 +35,16 @@ test('initial synchronization requires fresh matching reports and observer',()=>
  const snapshot={gateway:{thingsboard:{host:'example',remoteConfiguration:false},connectors:[{name:'RS485',type:'eco_modbus',class:'EcoModbusConnector',configuration:'modbus.json'}]},files:{'modbus.json':{master:{slaves:buildGroups(form,profiles,false)}}}}
  const desired=payload(snapshot,100)
  const attributes=Object.entries(desired).map(([key,value])=>({key,value:structuredClone(value),lastUpdateTs:101}))
- attributes.find(a=>a.key==='active_connectors').lastUpdateTs=1
+  attributes.find(a=>a.key==='active_connectors').lastUpdateTs=1
+ assert.ok(configured(desired,attributes))
+ assert.ok(cloudConfigured(attributes))
  assert.ok(acknowledged(desired,attributes,100))
  assert.ok(!acknowledged(desired,attributes,102))
  attributes.find(a=>a.key==='RS485').value.configurationJson.master.slaves[0].timeout=35
+ assert.ok(!configured(desired,attributes))
  assert.ok(!acknowledged(desired,attributes,100))
+ attributes.find(a=>a.key==='RS485').value.type='modbus'
+ assert.ok(!cloudConfigured(attributes))
  snapshot.gateway.connectors[0].type='modbus'
  assert.throws(()=>payload(snapshot),/observer/)
 })
