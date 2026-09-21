@@ -121,6 +121,55 @@ def test_backup_roundtrip_in_temporary_root(tmp_path):
         assert service._path(name).read_text() == name
 
 
+def test_backup_replace_preserves_service_owner_before_replacing(tmp_path, monkeypatch):
+    from app.services import backup_service as module
+    destination = tmp_path / 'connector.json'
+    destination.write_bytes(b'old')
+    real_stat = Path.stat
+    calls = []
+
+    def stat(path, *args, **kwargs):
+        result = real_stat(path, *args, **kwargs)
+        if path == destination:
+            return SimpleNamespace(st_uid=1234, st_gid=2345, st_mode=result.st_mode)
+        return result
+
+    def chown(fd, uid, gid):
+        assert destination.read_bytes() == b'old'
+        calls.append((uid, gid))
+
+    monkeypatch.setattr(Path, 'stat', stat)
+    monkeypatch.setattr(module.os, 'fchown', chown, raising=False)
+    BackupService._replace(destination, b'new', 0o660)
+    assert calls == [(1234, 2345)]
+    assert destination.read_bytes() == b'new'
+    assert destination.stat().st_mode & 0o777 == 0o660
+
+
+def test_backup_owner_failure_leaves_original_intact(tmp_path, monkeypatch):
+    from app.services import backup_service as module
+    destination = tmp_path / 'connector.json'
+    destination.write_bytes(b'old')
+
+    def fail(*args):
+        raise PermissionError('cannot preserve owner')
+
+    monkeypatch.setattr(module.os, 'fchown', fail, raising=False)
+    with pytest.raises(PermissionError, match='preserve owner'):
+        BackupService._replace(destination, b'new', 0o660)
+    assert destination.read_bytes() == b'old'
+    assert list(tmp_path.iterdir()) == [destination]
+
+
+def test_backup_replace_creates_missing_file(tmp_path, monkeypatch):
+    from app.services import backup_service as module
+    destination = tmp_path / 'config' / 'connector.json'
+    monkeypatch.setattr(module.os, 'fchown', lambda *args: pytest.fail('No existing owner'), raising=False)
+    BackupService._replace(destination, b'new', 0o660)
+    assert destination.read_bytes() == b'new'
+    assert destination.stat().st_mode & 0o777 == 0o660
+
+
 @pytest.mark.parametrize('name', ['../escape', '/etc/shadow', 'etc/shadow', 'etc/eco-iot-gw/../../shadow'])
 def test_backup_rejects_outside_roots(tmp_path, name):
     service = BackupService(root=tmp_path / 'host', temp_dir=tmp_path)

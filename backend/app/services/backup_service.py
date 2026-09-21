@@ -143,10 +143,15 @@ class BackupService:
     @staticmethod
     def _replace(destination, data, mode):
         destination.parent.mkdir(parents=True, exist_ok=True, mode=0o755)
+        owner = destination.stat() if destination.exists() else None
         fd, temporary = tempfile.mkstemp(dir=destination.parent)
         try:
             with os.fdopen(fd, 'wb') as stream:
                 stream.write(data)
+                # Atomic replacement must retain access for the existing service
+                # account, even when the restore itself runs as root.
+                if owner is not None and hasattr(os, 'fchown'):
+                    os.fchown(stream.fileno(), owner.st_uid, owner.st_gid)
                 os.fchmod(stream.fileno(), mode) if hasattr(os, 'fchmod') else None
             os.replace(temporary, destination)
         finally:
