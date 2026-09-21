@@ -35,6 +35,13 @@ Linux and macOS too *except* card flashing — see §9 for the differences.
 
 Install only what your task needs.
 
+Clone the branch containing the current provisioning and WebUI implementation:
+
+```bash
+git clone --branch feat/resi-migration-provisioning-v2 https://github.com/JiriD85/ECO-IOT-GW.git
+cd ECO-IOT-GW
+```
+
 | Tool | Needed for | Check |
 |---|---|---|
 | Python 3.11 | backend | `python --version` |
@@ -55,7 +62,7 @@ cd backend && uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
 ```bash
-cd frontend && npm install && npm run dev
+cd frontend && npm ci && npm run dev
 ```
 
 The frontend serves on **port 3000** and proxies `/api` to `http://localhost:8000` (see
@@ -160,8 +167,8 @@ not the ThingsBoard REST host, the P-Flow D116 is mixed-endian and needs two sla
 per meter, and its totals are mantissa+exponent rather than a constant divider.
 
 Two more habits that matter here: prefer verifying against the live unit over reasoning from
-the code (the tooling has a read-only `verify` phase for exactly this), and never `git push`
-— publication of this repo is a human decision.
+the code (the tooling has a read-only `verify` phase for exactly this), and only publish
+changes when the repository owner has explicitly requested it.
 
 ## 8. Confirm your setup
 

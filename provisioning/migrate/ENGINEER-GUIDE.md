@@ -187,8 +187,9 @@ this unit and written to two places:
 
 Both are gitignored. Over Tailscale the console recognises you and needs no login.
 
-In ThingsBoard, the `_PF*` devices should show fresh `CHC_*` values and `ECO_<HWID>_gw`
-should show the five `LTE_*` keys within about 15 minutes.
+In ThingsBoard, the `_PF*` devices should show fresh canonical values such as
+`T_flow_C`, `Vdot_m3h`, `V_m3` and `E_th_heating_kWh`; `ECO_<HWID>_gw` should show
+the five `LTE_*` keys within about 15 minutes.
 
 ---
 

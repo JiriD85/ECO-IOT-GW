@@ -24,21 +24,45 @@ IoT Gateway für Raspberry Pi (Pi4, Pi5, CM4) basierend auf ThingsBoard IoT Gate
   - Quectel LTE Modem (USB)
   - RS485 HAT oder USB-RS485 Adapter
 
-## Installation
+## Installation / Inbetriebnahme
+
+Die aktuelle, getestete Installation läuft vom Techniker-Laptop über den
+Migrationsassistenten. Der alte Pfad `install/install.sh` gehört nicht zu dieser
+Version.
 
 ```bash
-# Repository klonen
-git clone https://github.com/your-org/ECO-IOT-GW.git
+git clone --branch feat/resi-migration-provisioning-v2 \
+  https://github.com/JiriD85/ECO-IOT-GW.git
 cd ECO-IOT-GW
-
-# Installation starten (als root)
-sudo ./install/install.sh
+cp provisioning/migrate/.env.example provisioning/migrate/.env
 ```
 
-Nach der Installation:
-- Web-Interface: `https://<ip-adresse>`
-- Standard-Benutzer: `admin`
-- Passwort: Siehe `/etc/eco-iot-gw/secrets.env`
+Trage anschließend die ThingsBoard-, Tailscale- und Bootstrap-Zugangsdaten in
+`provisioning/migrate/.env` ein. Private Schlüssel, `.env`, Offline-Artefakte und
+erzeugte Gerätepasswörter werden nicht eingecheckt. Benötigt werden Node.js 18+,
+Docker Desktop, Git/OpenSSH (`ssh` und `scp`) sowie Internetzugang am Laptop zum
+Vorbereiten der Offline-Artefakte.
+
+Den Raspberry Pi direkt per Ethernet verbinden und den Assistenten starten:
+
+```bash
+node provisioning/migrate/tui.js --kit <DBKIT...>
+```
+
+Der Assistent richtet ThingsBoard, `ecoadmin`, Docker/tb-gateway, den vollständigen
+Modbus-Bestand (PFlow 1–4 und zwei Temperatursensoren), Tailscale und die Weboberfläche
+idempotent ein. Große Pakete werden am Laptop geladen und per Ethernet übertragen;
+der Raspberry Pi muss sie nicht über die SIM-Verbindung laden.
+
+Nach erfolgreicher Installation:
+
+- Weboberfläche vor Ort: `http://10.10.10.1/`
+- Benutzer: `ecoadmin`
+- Passwort: `provisioning/migrate/out/credentials.csv` und
+  `provisioning/migrate/out/<KIT>.secrets.json`
+- Ausführliche Anleitung: [ENGINEER-GUIDE.md](provisioning/migrate/ENGINEER-GUIDE.md)
+- Voraussetzungen für einen frischen Clone: [ONBOARDING.md](ONBOARDING.md)
+- Modbus-/ThingsBoard-Synchronisation: [MODBUS_CONFIGURATION.md](docs/MODBUS_CONFIGURATION.md)
 
 ## Projektstruktur
 
@@ -122,7 +146,7 @@ uvicorn app.main:app --reload
 
 ```bash
 cd frontend
-npm install
+npm ci
 npm run dev
 ```
 
